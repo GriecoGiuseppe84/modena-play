@@ -1,0 +1,25 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger Render Deploy Hook (API)
+        run: |
+          curl -fsSL -X POST "$RENDER_API_DEPLOY_HOOK"
+        env:
+          RENDER_API_DEPLOY_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+
+      - name: Trigger Render Deploy Hook (WEB)
+        run: |
+          curl -fsSL -X POST "$RENDER_WEB_DEPLOY_HOOK"
+        env:
+          RENDER_WEB_DEPLOY_HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}

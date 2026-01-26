@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: modenaplay-web
+    runtime: node
+    plan: free
+    buildCommand: cd client && npm install && npm run build
+    startCommand: cd client && npm run preview -- --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: VITE_API_URL
+        value: https://modenaplay-api.onrender.com
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+
+  - type: web
+    name: modenaplay-api
+    runtime: node
+    plan: free
+    buildCommand: cd server && npm install && npm run build
+    startCommand: cd server && npm start
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        value: modenaplay-api
+      - key: JWT_AUDIENCE
+        value: modenaplay-platform
+      - key: COOKIE_DOMAIN
+        value: modenagiochi.com
+      - key: CORS_ORIGINS
+        value: https://modenagiochi.com,https://www.modenagiochi.com,http://localhost:5173
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

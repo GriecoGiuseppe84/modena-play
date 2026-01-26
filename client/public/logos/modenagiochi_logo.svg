@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="160" viewBox="0 0 512 160" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00E5FF"/>
+      <stop offset="1" stop-color="#FFD700"/>
+    </linearGradient>
+  </defs>
+  <!-- D20 icon -->
+  <g transform="translate(24,20)">
+    <polygon points="60,0 110,35 92,110 28,110 10,35" fill="#0A0A0A" stroke="url(#g)" stroke-width="4"/>
+    <polygon points="60,0 92,110 60,86 28,110" fill="#0A0A0A" stroke="#00E5FF" stroke-width="2" opacity="0.9"/>
+    <polygon points="60,0 110,35 60,52 10,35" fill="#0A0A0A" stroke="#FFD700" stroke-width="2" opacity="0.9"/>
+    <text x="60" y="78" text-anchor="middle" font-family="Exo 2, Arial" font-size="44" font-weight="800" fill="#00E5FF">M</text>
+  </g>
+  <!-- Wordmark -->
+  <text x="170" y="78" font-family="Exo 2, Arial" font-size="54" font-weight="800" fill="#FFFFFF">Modena</text>
+  <text x="356" y="78" font-family="Exo 2, Arial" font-size="54" font-weight="800" fill="#00E5FF">Giochi</text>
+  <text x="170" y="118" font-family="Inter, Arial" font-size="18" fill="#FFD700" opacity="0.92">Il tuo hub gaming italiano</text>
+</svg>
