@@ -6,7 +6,7 @@ export default function Blog() {
       <section className="hero bg-gradient-to-r from-modena-navy to-black py-20">
         <div className="container mx-auto text-center px-4">
           <img
-            src="/logos/modenaplay_logo.svg"
+            src="/logos/modenaplay_logo.png"
             alt="Modena Play"
             className="logo-hero mx-auto h-32 lg:h-48 mb-8"
             loading="lazy"

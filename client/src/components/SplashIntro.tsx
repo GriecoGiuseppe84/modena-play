@@ -13,7 +13,7 @@ export default function SplashIntro({
   onDone,
   once = true,
   totalMs = 3600,
-  logoSrc = "/logos/modenaplay_logo.svg",
+  logoSrc = "/logos/modenaplay_logo.png",
 }: Props) {
   const [visible, setVisible] = useState(true);
 
