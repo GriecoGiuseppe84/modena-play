@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +8,7 @@ type Step = 1 | 2 | 3 | 4 | 5;
 
 export default function SetupWizard() {
   const { role } = useAuth();
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>(1);
   const [status, setStatus] = useState<Record<string, any>>({});
   const [busy, setBusy] = useState(false);
@@ -30,7 +32,7 @@ export default function SetupWizard() {
     (async () => {
       try {
         const { data } = await api.get('/api/admin/setup/status');
-        if (data?.completed) window.location.replace('/admin/dashboard');
+        if (data?.completed) navigate('/admin/dashboard', { replace: true });
       } catch {}
     })();
   }, []);
@@ -90,7 +92,7 @@ export default function SetupWizard() {
     setBusy(true); setError(null);
     try {
       await api.post('/api/admin/setup/complete');
-      window.location.replace('/admin/dashboard');
+      navigate('/admin/dashboard', { replace: true });
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Errore completamento setup');
     } finally { setBusy(false); }

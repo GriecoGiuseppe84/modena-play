@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Blog() {
   return (
@@ -17,9 +18,9 @@ export default function Blog() {
           <p className="text-xl md:text-2xl text-modena-gold mb-8 opacity-90">
             Board Games • Warhammer • Magic • Digital
           </p>
-          <a href="/admin/dashboard" className="btn-primary">
+          <Link to="/admin/dashboard" className="btn-primary">
             Accedi Admin →
-          </a>
+          </Link>
         </div>
       </section>
 <div className="max-w-6xl mx-auto p-6">
