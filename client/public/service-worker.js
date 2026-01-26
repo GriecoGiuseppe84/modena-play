@@ -1,4 +1,4 @@
-const CACHE_NAME = "modenaplay-cache-v1";
+const CACHE_NAME = "modenaplay-cache-v2";
 const OFFLINE_URL = "/index.html";
 
 self.addEventListener("install", (event) => {
