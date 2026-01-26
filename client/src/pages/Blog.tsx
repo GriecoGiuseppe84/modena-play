@@ -2,6 +2,7 @@ import React from 'react';
 
 export default function Blog() {
   return (
+    <>
       <section className="hero bg-gradient-to-r from-modena-navy to-black py-20">
         <div className="container mx-auto text-center px-4">
           <img
@@ -25,5 +26,6 @@ export default function Blog() {
       <h1 className="text-3xl font-black">Blog</h1>
       <p className="text-slate-400 mt-2">MVP: placeholder del blog (in V1.1 aggiungiamo CMS o markdown).</p>
     </div>
+    </>
   );
 }

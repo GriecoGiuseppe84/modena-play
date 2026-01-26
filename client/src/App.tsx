@@ -9,6 +9,7 @@ import SplashIntro from "./components/SplashIntro";
 
 export default function App() {
   return (
+    <>
       <SplashIntro />
 <BrowserRouter>
       <div className="min-h-screen flex flex-col">
@@ -23,5 +24,6 @@ export default function App() {
         <Footer />
       </div>
     </BrowserRouter>
+    </>
   );
 }
