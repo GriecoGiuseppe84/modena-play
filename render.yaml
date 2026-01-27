@@ -39,6 +39,6 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGINS
-        value: https://modenaplay.com,https://www.modenaplay.com,http://localhost:5173
+        value: https://modenaplay.com,https://www.modenaplay.com,https://modenaplay-web.onrender.com,http://localhost:5173
       - key: RATE_LIMIT_PER_MIN
         value: 100

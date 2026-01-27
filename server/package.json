@@ -1,7 +1,6 @@
 {
   "name": "modenaplay-server",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",

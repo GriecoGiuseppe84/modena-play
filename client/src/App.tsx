@@ -1,34 +1,36 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import LoginPage from './pages/LoginPage';
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+import HomePage from './pages/HomePage';
 import SignupPage from './pages/SignupPage';
-import SetupWizard from './pages/SetupWizard';
-import AdminDashboard from './pages/AdminDashboard';
-import UserDashboard from './pages/UserDashboard';
-import SellerDashboard from './pages/SellerDashboard';
-import ProtectedRoute from './components/ProtectedRoute';
+import UserLoginPage from './pages/UserLoginPage';
+import AdminLoginPage from './pages/AdminLoginPage';
+
+import AdminSetupPage from './pages/AdminSetupPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+
+import UserDashboardPage from './pages/UserDashboardPage';
+import SellerDashboardPage from './pages/SellerDashboardPage';
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<HomePage />} />
+
+      {/* Public auth */}
+      <Route path="/login" element={<UserLoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
 
-      <Route path="/admin/setup" element={
-        <ProtectedRoute role="admin">
-          <SetupWizard />
-        </ProtectedRoute>
-      } />
-      <Route path="/admin/dashboard" element={
-        <ProtectedRoute role="admin">
-          <AdminDashboard />
-        </ProtectedRoute>
-      } />
+      {/* Admin auth on dedicated URL */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route path="/admin/setup" element={<AdminSetupPage />} />
+      <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
 
-      <Route path="/user/dashboard" element={<UserDashboard />} />
-      <Route path="/seller/dashboard" element={<SellerDashboard />} />
+      {/* Minimal areas */}
+      <Route path="/user/dashboard" element={<UserDashboardPage />} />
+      <Route path="/seller/dashboard" element={<SellerDashboardPage />} />
+
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

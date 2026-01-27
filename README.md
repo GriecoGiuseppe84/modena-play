@@ -47,3 +47,12 @@ Nella prossima iterazione attiviamo signup/login reale via Supabase Auth + provi
 
 ### Nota build (Vite + ESM)
 Nel client usiamo `postcss.config.cjs` e `tailwind.config.cjs` perché `client/package.json` ha `type: module`.
+
+
+### UX login
+- User/Seller: `/login`
+- Admin: `/admin/login`
+
+
+### Backend note
+Il server compila in **CommonJS** (compatibile con Node 22 su Render) per evitare errori ESM su import senza estensione.
