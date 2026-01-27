@@ -59,7 +59,7 @@ async function supabasePasswordToken(email: string, password: string) {
 }
 
 async function upsertProfile(id: string, email: string, role: Role) {
-  const { error } = await supabaseAdmin
+  const { error } = await getSupabaseAdmin()
     .from('profiles')
     .upsert({ id, email, role, is_active: true }, { onConflict: 'email' });
 

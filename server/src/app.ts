@@ -12,7 +12,6 @@ import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import { affiliateRouter } from './routes/affiliate';
 import { analyticsRouter } from './routes/analytics';
-import { healthInfo } from './controllers/adminController';
 
 const logger = pino({ level: process.env.NODE_ENV === 'production' ? 'info' : 'debug' });
 
@@ -28,7 +27,7 @@ export function createApp() {
   app.use(pinoHttp({ logger }));
 
   app.get('/', (_req, res) => res.json({ ok: true, name: 'modenaplay-api' }));
-  app.get('/api/health', healthInfo);
+  app.use('/api/health', healthRoutes);
 
   app.use('/api/auth', authRoutes);
   app.use('/api/public', publicRoutes);
