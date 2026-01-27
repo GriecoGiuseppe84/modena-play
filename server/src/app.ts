@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import pino from 'pino';
 import { corsMiddleware } from './middleware/cors';
+import { errorHandler } from './middleware/errorHandler';
 import { rateLimit } from './middleware/rateLimit';
 
 import authRoutes from './routes/auth';
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/affiliate', affiliateRouter);
   app.use('/api/analytics', analyticsRouter);
 
+  app.use(errorHandler);
   return app;
 }
 

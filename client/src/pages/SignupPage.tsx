@@ -46,7 +46,7 @@ export default function SignupPage() {
           <input className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
             placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
           <input className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
-            placeholder="Password (min 6)" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+            placeholder="Password (min 6)" type="password" autoComplete="new-password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} />
           {error && <div className="text-sm text-red-300">{error}</div>}
           <button disabled={busy} className="w-full px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold">
             {busy ? 'Creo account...' : 'Crea account'}

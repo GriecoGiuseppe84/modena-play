@@ -1,15 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
-
-// Support aliases to reduce Render env mistakes
-const serviceKey = String(
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ''
-).trim();
-
-const anonKey = String(
-  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PUBLIC || ''
-).trim();
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 function must(v: string, name: string) {
   if (!v) {
@@ -25,12 +14,17 @@ function must(v: string, name: string) {
   return v;
 }
 
-export const supabaseAdmin = createClient(
-  must(supabaseUrl, 'SUPABASE_URL'),
-  must(serviceKey, 'SUPABASE_SERVICE_ROLE_KEY'),
-  { auth: { persistSession: false, autoRefreshToken: false } }
-);
+export function getSupabaseAdmin(): SupabaseClient {
+  const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
+  const serviceKey =
+    String(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').trim();
 
-export function getAnonKey() {
+  return createClient(must(supabaseUrl, 'SUPABASE_URL'), must(serviceKey, 'SUPABASE_SERVICE_ROLE_KEY'), {
+    auth: { persistSession: false },
+  });
+}
+
+export function getAnonKey(): string {
+  const anonKey = String(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PUBLIC || '').trim();
   return must(anonKey, 'SUPABASE_ANON_KEY');
 }

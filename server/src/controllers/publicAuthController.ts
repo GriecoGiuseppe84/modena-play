@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../database/pg';
-import { supabaseAdmin, getAnonKey } from '../database/supabase';
+import { getSupabaseAdmin, getAnonKey } from '../database/supabase';
 import { randomToken, sha256 } from '../utils/crypto';
 
 type Role = 'user' | 'seller';
@@ -102,7 +102,7 @@ export async function signup(req: Request, res: Response) {
 
   let userId = String(su?.user?.id ?? '');
   if (!userId) {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const { data, error } = await getSupabaseAdmin().auth.admin.listUsers({ page: 1, perPage: 1000 });
     if (error) throw new Error(error.message);
     const found = data?.users?.find(u => (u.email || '').toLowerCase() === email);
     if (!found?.id) throw new Error('User created but cannot resolve id (check email confirmations)');

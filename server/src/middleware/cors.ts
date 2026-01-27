@@ -1,41 +1,70 @@
-import cors from 'cors';
+import type { Request, Response, NextFunction } from 'express';
 
-function parseOrigins(v: string | undefined): string[] {
-  return String(v ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
+function normalizeOrigin(o: string) {
+  return o.trim().replace(/\/$/, '');
 }
 
-function isAllowedOrigin(origin: string, allowed: Set<string>) {
-  if (allowed.has(origin)) return true;
+function parseOrigins(v: string | undefined): string[] {
+  if (!v) return [];
+  return v
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(normalizeOrigin);
+}
 
-  // allow Render preview domains explicitly if you want:
-  // https://<service>.onrender.com
+function isOnRender(origin: string) {
   try {
     const u = new URL(origin);
-    if (u.hostname.endsWith('.onrender.com')) return true;
+    return u.hostname.endsWith('.onrender.com');
   } catch {
-    // ignore
+    return false;
   }
+}
 
+function isLocalhost(origin: string) {
+  return /^https?:\/\/localhost(:\d+)?$/.test(origin);
+}
+
+function defaultAllow(origin: string) {
+  // Always allow our own domains + Render preview for MVP
+  try {
+    const u = new URL(origin);
+    const h = u.hostname.toLowerCase();
+    if (h === 'modenaplay.com' || h === 'www.modenaplay.com') return true;
+    if (h === 'modenagiochi.com' || h === 'www.modenagiochi.com') return true;
+    if (isOnRender(origin)) return true;
+    if (isLocalhost(origin)) return true;
+  } catch {}
   return false;
 }
 
-export const corsMiddleware = cors({
-  origin: (origin, cb) => {
-    const allowed = new Set<string>(parseOrigins(process.env.CORS_ORIGINS));
+export function corsMiddleware(req: Request, res: Response, next: NextFunction) {
+  const origin = req.headers.origin ? normalizeOrigin(String(req.headers.origin)) : '';
 
-    // same-origin / server-to-server / curl
-    if (!origin) return cb(null, true);
+  const configured = parseOrigins(process.env.CORS_ORIGINS);
+  const allowed =
+    !!origin &&
+    (configured.includes(origin) || defaultAllow(origin));
 
-    if (isAllowedOrigin(origin, allowed)) return cb(null, true);
+  if (allowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, X-Requested-With'
+    );
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+    );
+  }
 
-    // IMPORTANT: do not throw an Error (it prevents CORS headers and looks like a network error in browser)
-    return cb(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 204,
-});
+  if (req.method === 'OPTIONS') {
+    // Always end preflight (even if not allowed), to avoid browser showing "failed to fetch"
+    return res.status(204).end();
+  }
+
+  return next();
+}
