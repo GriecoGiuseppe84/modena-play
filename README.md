@@ -43,3 +43,7 @@ Nella prossima iterazione attiviamo signup/login reale via Supabase Auth + provi
 - Dashboard: `/user/dashboard` o `/seller/dashboard`
 
 > Nota: se in Supabase è attiva la conferma email obbligatoria, la signup potrebbe non restituire sessione; per questo MVP conviene disattivarla in Auth settings.
+
+
+### Nota build (Vite + ESM)
+Nel client usiamo `postcss.config.cjs` e `tailwind.config.cjs` perché `client/package.json` ha `type: module`.
