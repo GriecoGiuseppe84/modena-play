@@ -18,7 +18,7 @@ function getSupabaseAuthBase() {
 }
 
 function getAnonKey() {
-  const k = String(process.env.SUPABASE_ANON_KEY || '');
+  const k = String(getAnonKey());
   if (!k) throw new Error('Missing SUPABASE_ANON_KEY');
   return k;
 }

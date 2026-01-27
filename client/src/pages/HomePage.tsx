@@ -6,13 +6,13 @@ import { getStoredUser } from '../services/auth';
 
 export default function HomePage() {
   const nav = useNavigate();
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => sessionStorage.getItem('mp_splash_done') !== '1');
 
   const hasUser = useMemo(() => !!getStoredUser(), []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {showSplash && <SplashIntro onDone={() => setShowSplash(false)} />}
+      {showSplash && <SplashIntro onDone={() => { sessionStorage.setItem('mp_splash_done','1'); setShowSplash(false); }} />}
 
       <div className="max-w-5xl mx-auto px-6 pt-16">
         <div className="flex items-center justify-between gap-6">

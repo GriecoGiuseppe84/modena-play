@@ -2,11 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = String(process.env.SUPABASE_URL || '').trim();
 
-// Support multiple env names to avoid Render misconfig
-const serviceKey =
-  String(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '').trim();
+// Support aliases to reduce Render env mistakes
+const serviceKey = String(
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ''
+).trim();
 
-const anonKey = String(process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PUBLIC || '').trim();
+const anonKey = String(
+  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY_PUBLIC || ''
+).trim();
 
 function must(v: string, name: string) {
   if (!v) {
@@ -22,9 +25,11 @@ function must(v: string, name: string) {
   return v;
 }
 
-export const supabaseAdmin = createClient(must(supabaseUrl, 'SUPABASE_URL'), must(serviceKey, 'SUPABASE_SERVICE_ROLE_KEY'), {
-  auth: { persistSession: false },
-});
+export const supabaseAdmin = createClient(
+  must(supabaseUrl, 'SUPABASE_URL'),
+  must(serviceKey, 'SUPABASE_SERVICE_ROLE_KEY'),
+  { auth: { persistSession: false, autoRefreshToken: false } }
+);
 
 export function getAnonKey() {
   return must(anonKey, 'SUPABASE_ANON_KEY');
