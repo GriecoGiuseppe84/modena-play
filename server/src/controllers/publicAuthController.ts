@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { pool } from '../database/pg';
-import { supabaseAdmin } from '../database/supabase';
+import { supabaseAdmin, getAnonKey } from '../database/supabase';
 import { randomToken, sha256 } from '../utils/crypto';
 
 type Role = 'user' | 'seller';
@@ -11,17 +11,12 @@ function signAccessToken(payload: { sub: string; email: string; role: any }) {
   return jwt.sign(payload, secret, { expiresIn: '7d' });
 }
 
-function getSupabaseAuthBase() {
+function getSupabaseAuthBase(): string {
   const url = String(process.env.SUPABASE_URL || '').replace(/\/+$/, '');
   if (!url) throw new Error('Missing SUPABASE_URL');
   return `${url}/auth/v1`;
 }
 
-function getAnonKey() {
-  const k = String(getAnonKey());
-  if (!k) throw new Error('Missing SUPABASE_ANON_KEY');
-  return k;
-}
 
 async function supabaseSignUp(email: string, password: string) {
   const base = getSupabaseAuthBase();
