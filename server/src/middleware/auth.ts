@@ -1,54 +1,32 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { ENV } from '../config/env';
-import { supabaseAdmin } from '../database/supabase';
-import type { JwtClaims, Role } from '../types';
 
-type AuthedReq = Request & { auth?: { userId: string; email: string; role: Role; jti?: string } };
+export type JwtPayload = {
+  sub: string;
+  email: string;
+  role: 'admin' | 'user' | 'seller';
+  iat: number;
+  exp: number;
+};
 
-async function isRevoked(jti: string): Promise<boolean> {
-  // token revoke list stored in audit_log as TOKEN_REVOKE with changes.jti
-  const { data, error } = await supabaseAdmin
-    .from('audit_log')
-    .select('id')
-    .eq('action', 'TOKEN_REVOKE')
-    .contains('changes', { jti })
-    .limit(1);
+export function requireAuth(req: Request & { user?: any }, res: Response, next: NextFunction) {
+  const h = String(req.headers.authorization ?? '');
+  const token = h.startsWith('Bearer ') ? h.slice(7) : '';
+  if (!token) return res.status(401).json({ error: 'Missing token' });
 
-  if (error) return false; // fail-open to avoid blocking on DB issue; logs handled elsewhere
-  return (data?.length ?? 0) > 0;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || '') as JwtPayload;
+    req.user = { id: decoded.sub, email: decoded.email, role: decoded.role };
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
 }
 
-export function requireAuth(requiredRole?: Role) {
-  return async (req: AuthedReq, res: Response, next: NextFunction) => {
-    try {
-      const header = req.header('authorization') ?? '';
-      const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-
-      if (!token) return res.status(401).json({ error: 'Missing Authorization Bearer token' });
-
-      const claims = jwt.verify(token, ENV.JWT_SECRET, {
-        issuer: ENV.JWT_ISSUER,
-        audience: ENV.JWT_AUDIENCE,
-      }) as JwtClaims;
-
-      if (claims.type !== 'access') return res.status(401).json({ error: 'Invalid token type' });
-      if (await isRevoked(claims.jti)) return res.status(401).json({ error: 'Token revoked' });
-
-      req.auth = { userId: claims.sub, email: claims.email, role: claims.role, jti: claims.jti };
-
-      if (requiredRole && req.auth.role !== requiredRole) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-
-      return next();
-    } catch (e: any) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+export function requireRole(role: 'admin'|'user'|'seller') {
+  return (req: Request & { user?: any }, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: 'Missing user' });
+    if (req.user.role !== role) return res.status(403).json({ error: `${role} only` });
+    return next();
   };
-}
-
-export async function resolveProfileRole(userId: string): Promise<Role> {
-  const { data } = await supabaseAdmin.from('profiles').select('role').eq('id', userId).maybeSingle();
-  return (data?.role as Role) ?? 'user';
 }

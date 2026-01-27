@@ -1,9 +1,10 @@
+import 'dotenv/config';
 import { createApp } from './app';
-import { ENV } from './config/env';
-import { logger } from './utils/logger';
 
+const port = Number(process.env.PORT ?? 10000);
 const app = createApp();
 
-app.listen(ENV.PORT, () => {
-  logger.info('server_started', { port: ENV.PORT, env: ENV.NODE_ENV });
+app.listen(port, () => {
+  // eslint-disable-next-line no-console
+  console.log(`modenaplay-api listening on :${port}`);
 });

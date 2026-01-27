@@ -1,52 +1,14 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { adminLogin, refreshAccessToken, logout } from '../services/auth';
+import React, { createContext, useContext, useMemo, useState } from 'react';
+import type { User } from '../services/auth';
+import { getStoredUser } from '../services/auth';
 
-type AuthState = {
-  isAuthed: boolean;
-  role: 'admin' | 'user' | 'seller' | null;
-  accessToken: string | null;
-  loading: boolean;
-};
-
-type AuthCtx = AuthState & {
-  loginAdmin: (email: string, password: string) => Promise<void>;
-  doLogout: () => Promise<void>;
-};
+type AuthCtx = { user: User | null; setUser: (u: User | null) => void; };
 
 const Ctx = createContext<AuthCtx | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    isAuthed: false,
-    role: null,
-    accessToken: null,
-    loading: true,
-  });
-
-  useEffect(() => {
-    // try refresh on mount (admin only)
-    (async () => {
-      try {
-        const r = await refreshAccessToken();
-        setState({ isAuthed: true, role: r.role as any, accessToken: r.accessToken, loading: false });
-      } catch {
-        setState((s) => ({ ...s, loading: false }));
-      }
-    })();
-  }, []);
-
-  const value = useMemo<AuthCtx>(() => ({
-    ...state,
-    loginAdmin: async (email, password) => {
-      const r = await adminLogin(email, password);
-      setState({ isAuthed: true, role: r.role as any, accessToken: r.accessToken, loading: false });
-    },
-    doLogout: async () => {
-      await logout();
-      setState({ isAuthed: false, role: null, accessToken: null, loading: false });
-    },
-  }), [state]);
-
+  const [user, setUser] = useState<User | null>(getStoredUser());
+  const value = useMemo(() => ({ user, setUser }), [user]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

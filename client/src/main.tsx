@@ -1,30 +1,24 @@
+import './index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-import './index.css';
-import './styles/splash-intro.css';
-
+import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import App from './App';
 import { AuthProvider } from './context/AuthContext';
 
 const qc = new QueryClient();
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
-  });
-}
-});
-}
+const rootEl = document.getElementById('root');
+if (!rootEl) throw new Error('Root element not found');
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <QueryClientProvider client={qc}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>
 );

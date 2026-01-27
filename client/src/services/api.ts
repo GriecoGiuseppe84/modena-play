@@ -1,28 +1,33 @@
-// client/src/services/api.ts
-import axios from 'axios';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
-function normalizeBaseUrl(raw?: string): string {
-  const fallback = 'http://localhost:10000';
-  const v = String(raw ?? '').trim();
-
-  if (!v) return fallback;
-
-  // Se l'utente mette "modenaplay-api.onrender.com" senza https
-  const withProto = /^https?:\/\//i.test(v) ? v : `https://${v}`;
-
-  // Rimuovi slash finali (evita //api/...)
-  return withProto.replace(/\/+$/, '');
+function getAccessToken() {
+  return localStorage.getItem('mp_access') || '';
 }
 
-const baseURL = normalizeBaseUrl(import.meta.env.VITE_API_URL as string | undefined);
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers || {});
+  headers.set('Content-Type', 'application/json');
 
-export const api = axios.create({
-  baseURL,
-  withCredentials: true,
-  timeout: 20000,
-});
+  const token = getAccessToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
 
-export function setAccessToken(token: string | null) {
-  if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  else delete api.defaults.headers.common['Authorization'];
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers,
+    credentials: 'include',
+  });
+
+  if (res.status === 401) {
+    const rr = await fetch(`${API_URL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
+    if (rr.ok) {
+      const j = await rr.json();
+      localStorage.setItem('mp_access', j.accessToken);
+      return apiFetch<T>(path, init);
+    }
+  }
+
+  const txt = await res.text();
+  const data = txt ? (() => { try { return JSON.parse(txt); } catch { return { error: txt }; } })() : {};
+  if (!res.ok) throw new Error((data as any)?.error || `HTTP ${res.status}`);
+  return data as T;
 }

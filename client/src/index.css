@@ -1,53 +1,5 @@
-@import "./styles/splash-intro.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root { color-scheme: dark; }
-
-a { @apply text-sky-400 hover:text-sky-300; }
-
-
-:root{
-  --modena-navy:#1A237E;
-  --modena-cyan:#00E5FF;
-  --modena-gold:#FFD700;
-  --modena-black:#0A0A0A;
-}
-
-html, body {
-  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
-
-h1,h2,h3,h4,h5,h6{
-  font-family: "Exo 2", Inter, system-ui, sans-serif;
-}
-
-.logo-hero {
-  animation: glow-pulse 3s ease-in-out infinite alternate;
-}
-
-@keyframes glow-pulse {
-  0% { 
-    filter: drop-shadow(0 0 5px var(--modena-cyan));
-    transform: scale(1);
-  }
-  100% { 
-    filter: drop-shadow(0 0 20px var(--modena-cyan)) drop-shadow(0 0 40px var(--modena-gold));
-    transform: scale(1.05);
-  }
-}
-
-.btn-primary{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:0.75rem 1.25rem;
-  border-radius:0.75rem;
-  font-weight:800;
-  background:linear-gradient(90deg, var(--modena-cyan), var(--modena-gold));
-  color:#0A0A0A;
-  box-shadow:0 8px 30px rgba(0,229,255,0.15);
-  transition:transform .15s ease, filter .15s ease;
-}
-.btn-primary:hover{ transform: translateY(-1px); filter: brightness(1.05); }

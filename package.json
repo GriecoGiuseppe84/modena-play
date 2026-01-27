@@ -1,15 +1,15 @@
 {
-  "name": "modenaplay-platform",
+  "name": "modenaplay-monorepo",
   "private": true,
-  "version": "1.0.0",
   "workspaces": [
     "client",
     "server"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace server & npm run dev --workspace client",
-    "build": "npm run build --workspace client && npm run build --workspace server",
-    "lint": "npm run lint --workspace client && npm run lint --workspace server",
-    "test": "npm run test --workspace server && npm run test --workspace client"
+    "dev": "npm -w client run dev & npm -w server run dev",
+    "build": "npm -w client run build && npm -w server run build",
+    "start": "npm -w server run start",
+    "lint": "npm -w client run lint && npm -w server run lint",
+    "typecheck": "npm -w client run typecheck && npm -w server run typecheck"
   }
 }

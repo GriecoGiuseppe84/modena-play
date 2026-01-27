@@ -1,18 +1,26 @@
-import { api, setAccessToken } from './api';
+import { apiFetch } from './api';
 
-export async function adminLogin(email: string, password: string) {
-  const { data } = await api.post('/api/auth/admin/login', { email, password });
-  setAccessToken(data.accessToken);
-  return data as { accessToken: string; role: string };
+export type Role = 'admin' | 'user' | 'seller';
+export type User = { id: string; email: string; role: Role };
+
+export async function adminLogin(email: string, password: string): Promise<User> {
+  const r = await apiFetch<{ accessToken: string; user: User }>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  localStorage.setItem('mp_access', r.accessToken);
+  localStorage.setItem('mp_user', JSON.stringify(r.user));
+  return r.user;
 }
 
-export async function refreshAccessToken() {
-  const { data } = await api.post('/api/auth/refresh');
-  setAccessToken(data.accessToken);
-  return data as { accessToken: string; role: string };
+export async function logout(): Promise<void> {
+  await apiFetch('/api/auth/logout', { method: 'POST' });
+  localStorage.removeItem('mp_access');
+  localStorage.removeItem('mp_user');
 }
 
-export async function logout() {
-  await api.post('/api/auth/logout');
-  setAccessToken(null);
+export function getStoredUser(): User | null {
+  const raw = localStorage.getItem('mp_user');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
