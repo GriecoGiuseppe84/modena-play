@@ -12,6 +12,8 @@ import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import { affiliateRouter } from './routes/affiliate';
 import { analyticsRouter } from './routes/analytics';
+import healthRoutes from './routes/health';
+
 
 const logger = pino({ level: process.env.NODE_ENV === 'production' ? 'info' : 'debug' });
 
