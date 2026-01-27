@@ -1,108 +1,89 @@
 import { Router } from 'express';
+import { pool } from '../database/pg';
 import { requireAuth } from '../middleware/auth';
-import { supabaseAdmin } from '../database/supabase';
-import { schemas } from '../utils/validators';
-import { anonymizeIp, sha256Hex } from '../utils/crypto';
+import { anonymizeIp } from '../utils/crypto';
 
 export const affiliateRouter = Router();
 
-// list my links
-affiliateRouter.get('/links', requireAuth(), async (req: any, res) => {
-  const { data, error } = await supabaseAdmin
-    .from('affiliate_links')
-    .select('*')
-    .eq('created_by_id', req.auth.userId)
-    .order('created_at', { ascending: false });
+// All affiliate endpoints require auth (user/seller/admin)
+affiliateRouter.use(requireAuth);
 
-  if (error) return res.status(500).json({ error: 'Failed to load links' });
-  res.json({ items: data ?? [] });
+// List links owned by current user (admin can pass ?all=1)
+affiliateRouter.get('/links', async (req: any, res) => {
+  const all = String(req.query?.all ?? '') === '1';
+  const userId = req.user.id;
+
+  if (all && req.user.role === 'admin') {
+    const r = await pool.query(
+      `select * from public.affiliate_links order by created_at desc limit 500`
+    );
+    return res.json({ items: r.rows });
+  }
+
+  const r = await pool.query(
+    `select * from public.affiliate_links where created_by_id = $1 order by created_at desc`,
+    [userId]
+  );
+  return res.json({ items: r.rows });
 });
 
-// create link
-affiliateRouter.post('/links', requireAuth(), async (req: any, res) => {
-  const { error, value } = schemas.affiliateLinkCreate.validate(req.body, { abortEarly: false, stripUnknown: true });
-  if (error) return res.status(400).json({ error: 'Invalid input', details: error.details.map((d) => d.message) });
+// Create link for current user/seller/admin
+affiliateRouter.post('/links', async (req: any, res) => {
+  const userId = req.user.id;
+  const {
+    source_url,
+    destination_url,
+    title,
+    category,
+    commission_rate,
+    status,
+  } = req.body ?? {};
 
-  const row = {
-    created_by_id: req.auth.userId,
-    ...value,
-  };
+  if (!source_url || !destination_url || !title) {
+    return res.status(400).json({ error: 'Missing source_url / destination_url / title' });
+  }
 
-  const { data, error: insErr } = await supabaseAdmin.from('affiliate_links').insert(row).select('*').single();
-  if (insErr) return res.status(500).json({ error: 'Failed to create link' });
-
-  await supabaseAdmin.from('audit_log').insert({
-    action: 'LINK_CREATE',
-    actor_id: req.auth.userId,
-    resource_type: 'affiliate_link',
-    resource_id: data.id,
-    changes: row,
-  });
-
-  res.json({ item: data });
+  const r = await pool.query(
+    `insert into public.affiliate_links(created_by_id, source_url, destination_url, title, category, commission_rate, status)
+     values ($1,$2,$3,$4,$5,$6,$7)
+     returning *`,
+    [
+      userId,
+      String(source_url),
+      String(destination_url),
+      String(title),
+      String(category ?? ''),
+      Number(commission_rate ?? 0),
+      String(status ?? 'active'),
+    ]
+  );
+  return res.status(201).json({ item: r.rows[0] });
 });
 
-// update link
-affiliateRouter.patch('/links/:id', requireAuth(), async (req: any, res) => {
-  const { error, value } = schemas.affiliateLinkUpdate.validate(req.body, { abortEarly: false, stripUnknown: true });
-  if (error) return res.status(400).json({ error: 'Invalid input', details: error.details.map((d) => d.message) });
+// Basic click tracking endpoint (public). Logs and redirects.
+affiliateRouter.get('/r/:id', async (req: any, res) => {
+  const linkId = String(req.params.id || '');
+  if (!linkId) return res.status(400).send('Missing link id');
 
-  const id = String(req.params.id);
+  const lr = await pool.query(`select destination_url from public.affiliate_links where id = $1 limit 1`, [linkId]);
+  const dest = lr.rows?.[0]?.destination_url;
+  if (!dest) return res.status(404).send('Not found');
 
-  const { data: existing } = await supabaseAdmin
-    .from('affiliate_links')
-    .select('id, created_by_id')
-    .eq('id', id)
-    .maybeSingle();
+  const ip = anonymizeIp(String(req.headers['x-forwarded-for'] ?? req.socket?.remoteAddress ?? ''));
+  const ua = String(req.headers['user-agent'] ?? '');
+  const referer = String(req.headers['referer'] ?? '');
+  const visitorId = String(req.cookies?.visitor_id ?? '');
 
-  if (!existing) return res.status(404).json({ error: 'Not found' });
-  if (existing.created_by_id !== req.auth.userId && req.auth.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  try {
+    await pool.query(
+      `insert into public.link_clicks(link_id, visitor_id, referer, user_agent, ip_anonymized)
+       values ($1,$2,$3,$4,$5)`,
+      [linkId, visitorId || null, referer || null, ua || null, ip || null]
+    );
+    await pool.query(`update public.affiliate_links set click_count = coalesce(click_count,0) + 1, updated_at = now() where id=$1`, [linkId]);
+  } catch {
+    // don't block redirect on logging errors
+  }
 
-  const { data, error: updErr } = await supabaseAdmin.from('affiliate_links').update(value).eq('id', id).select('*').single();
-  if (updErr) return res.status(500).json({ error: 'Failed to update link' });
-
-  await supabaseAdmin.from('audit_log').insert({
-    action: 'LINK_UPDATE',
-    actor_id: req.auth.userId,
-    resource_type: 'affiliate_link',
-    resource_id: id,
-    changes: value,
-  });
-
-  res.json({ item: data });
-});
-
-// redirect + click tracking (public)
-affiliateRouter.get('/r/:id', async (req, res) => {
-  const id = String(req.params.id);
-
-  const { data: link, error } = await supabaseAdmin.from('affiliate_links').select('id,destination_url,status').eq('id', id).maybeSingle();
-  if (error || !link) return res.status(404).send('Not found');
-  if (link.status !== 'active') return res.status(410).send('Link inactive');
-
-  const ua = req.header('user-agent') ?? null;
-  const referer = req.header('referer') ?? null;
-
-  const ip = (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ?? req.socket.remoteAddress ?? null;
-  const ipAnon = anonymizeIp(ip);
-  const visitorRaw = `${ipAnon ?? 'na'}|${ua ?? 'na'}`;
-  const visitorId = sha256Hex(visitorRaw).slice(0, 32);
-
-  const { data: click } = await supabaseAdmin
-    .from('link_clicks')
-    .insert({
-      link_id: id,
-      visitor_id: visitorId,
-      referer,
-      user_agent: ua,
-      ip_anonymized: ipAnon,
-    })
-    .select('id')
-    .single();
-
-  // best-effort counters
-  await supabaseAdmin.rpc('mg_inc_click', { p_link_id: id });
-
-  const dest = link.destination_url;
-  res.redirect(302, dest);
+  return res.redirect(302, dest);
 });

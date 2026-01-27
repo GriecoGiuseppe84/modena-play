@@ -20,7 +20,7 @@ export async function adminLogin(req: Request, res: Response) {
 
   // Stable admin id stored in admin_config
   const cfg = await pool.query("select config_value from public.admin_config where config_key='admin_identity' limit 1");
-  let adminId = cfg.rows?.[0]?.config_value?.id as string | undefined;
+  let adminId: string | undefined = cfg.rows?.[0]?.config_value?.id as string | undefined;
 
   if (!adminId) {
     const r = await pool.query("select gen_random_uuid() as id");
@@ -32,6 +32,8 @@ export async function adminLogin(req: Request, res: Response) {
       ['admin_identity', { id: adminId, email }]
     );
   }
+
+  if (!adminId) return res.status(500).json({ error: 'Admin id missing' });
 
   await pool.query(
     `insert into public.profiles(id, email, role, is_active, created_at, updated_at)

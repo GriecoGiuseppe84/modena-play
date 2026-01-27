@@ -75,7 +75,7 @@ export async function completeSetup(req: Request & { user?: any }, res: Response
   await pool.query(
     `insert into public.audit_log(action, actor_id, resource_type, resource_id, changes)
      values ($1,$2,$3,$4,$5)`,
-    ['SETUP_COMPLETED', req.user?.id ?? null, 'platform', req.user?.id ?? null, { setup_completed: True }]
+    ['SETUP_COMPLETED', req.user?.id ?? null, 'platform', req.user?.id ?? null, { setup_completed: true }]
   );
 
   return res.json({ completed: true });

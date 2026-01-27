@@ -1,35 +1,41 @@
 import { Router } from 'express';
+import { pool } from '../database/pg';
 import { requireAuth } from '../middleware/auth';
-import { supabaseAdmin } from '../database/supabase';
-import { schemas } from '../utils/validators';
 
 export const analyticsRouter = Router();
+analyticsRouter.use(requireAuth);
 
-analyticsRouter.get('/summary', requireAuth(), async (req: any, res) => {
-  const from = String(req.query.from ?? '');
-  const to = String(req.query.to ?? '');
-  const { error } = schemas.analyticsRange.validate({ from, to });
-  if (error) return res.status(400).json({ error: 'Invalid date range' });
+// Summary cards for current user (or admin ?all=1)
+analyticsRouter.get('/summary', async (req: any, res) => {
+  const all = String(req.query?.all ?? '') === '1';
+  const userId = req.user.id;
 
-  const { data, error: rpcErr } = await supabaseAdmin.rpc('mg_analytics_summary', {
-    p_user_id: req.auth.role === 'admin' ? null : req.auth.userId,
-    p_from: from,
-    p_to: to,
+  const where = all && req.user.role === 'admin' ? '' : 'where l.created_by_id = $1';
+  const params = all && req.user.role === 'admin' ? [] : [userId];
+
+  const clicks = await pool.query(
+    `select coalesce(sum(l.click_count),0)::int as clicks
+     from public.affiliate_links l ${where}`,
+    params
+  );
+
+  const conv = await pool.query(
+    `select coalesce(count(*),0)::int as conversions,
+            coalesce(sum(c.commission_earned),0)::numeric as commission
+     from public.conversions c
+     join public.affiliate_links l on l.id = c.link_id
+     ${where}`,
+    params
+  );
+
+  const clicksN = Number(clicks.rows?.[0]?.clicks ?? 0);
+  const convN = Number(conv.rows?.[0]?.conversions ?? 0);
+  const rate = clicksN > 0 ? (convN / clicksN) : 0;
+
+  return res.json({
+    clicks: clicksN,
+    conversions: convN,
+    conversionRate: rate,
+    commission: String(conv.rows?.[0]?.commission ?? '0'),
   });
-
-  if (rpcErr) return res.status(500).json({ error: 'Analytics failed' });
-  res.json(data);
-});
-
-analyticsRouter.get('/top-links', requireAuth(), async (req: any, res) => {
-  const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 10)));
-  const q = supabaseAdmin
-    .from('affiliate_links')
-    .select('id,title,click_count,conversion_count,conversion_rate')
-    .order('click_count', { ascending: false })
-    .limit(limit);
-
-  const { data, error } = req.auth.role === 'admin' ? await q : await q.eq('created_by_id', req.auth.userId);
-  if (error) return res.status(500).json({ error: 'Failed to load top links' });
-  res.json({ items: data ?? [] });
 });
