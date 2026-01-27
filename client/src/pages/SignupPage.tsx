@@ -1,36 +1,62 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { signup as publicSignup } from '../services/publicAuth';
+import { useAuth } from '../context/AuthContext';
 
 export default function SignupPage() {
+  const nav = useNavigate();
+  const { setUser } = useAuth();
+
   const [role, setRole] = useState<'user'|'seller'>('user');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setError(null);
+    try {
+      const u = await publicSignup(email, password, role);
+      setUser(u);
+      nav(role === 'seller' ? '/seller/dashboard' : '/user/dashboard', { replace: true });
+    } catch (err: any) {
+      setError(err?.message ?? 'Signup fallito');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen p-8">
-      <div className="max-w-xl mx-auto space-y-4">
-        <h1 className="text-2xl font-black">Signup (MVP minimo)</h1>
-        <p className="text-slate-400">
-          In questo ZIP l’area User/Seller è predisposta a livello UI/route, ma l’onboarding/auth completa verrà attivata nel prossimo step.
-        </p>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <form onSubmit={onSubmit} className="w-full max-w-md p-6 rounded-2xl border border-slate-800 bg-slate-950">
+        <h1 className="text-2xl font-black">Signup</h1>
+        <p className="text-sm text-slate-400 mt-1">Crea un account User o Seller (Supabase Auth + provisioning profile).</p>
 
-        <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40 space-y-3">
-          <label className="text-xs text-slate-400">Scegli ruolo</label>
-          <select className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+        <div className="mt-4">
+          <label className="text-xs text-slate-400">Ruolo</label>
+          <select className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800"
             value={role} onChange={e=>setRole(e.target.value as any)}>
             <option value="user">User</option>
             <option value="seller">Seller</option>
           </select>
-          <div className="text-sm text-slate-400">
-            Selezionato: <span className="font-semibold text-slate-200">{role}</span>
-          </div>
-          <div className="text-xs text-slate-500">
-            Prossimo step: signup reale con Supabase Auth + provisioning profile.
-          </div>
         </div>
 
-        <Link className="inline-block px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 font-semibold" to="/login">
-          Torna al login
-        </Link>
-      </div>
+        <div className="mt-4 space-y-3">
+          <input className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} />
+          <input className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            placeholder="Password (min 6)" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+          {error && <div className="text-sm text-red-300">{error}</div>}
+          <button disabled={busy} className="w-full px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold">
+            {busy ? 'Creo account...' : 'Crea account'}
+          </button>
+        </div>
+
+        <div className="mt-4 text-sm text-slate-400">
+          Hai già un account? <Link className="text-indigo-300 hover:text-indigo-200" to="/login">Vai al Login</Link>
+        </div>
+      </form>
     </div>
   );
 }

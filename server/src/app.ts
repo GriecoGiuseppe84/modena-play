@@ -7,6 +7,7 @@ import { corsMiddleware } from './middleware/cors';
 import { rateLimit } from './middleware/rateLimit';
 
 import authRoutes from './routes/auth';
+import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import { healthInfo } from './controllers/adminController';
 
@@ -26,6 +27,7 @@ export function createApp() {
   app.get('/api/health', healthInfo);
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/public', publicRoutes);
   app.use('/api/admin', adminRoutes);
 
   return app;

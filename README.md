@@ -35,3 +35,11 @@ npm -w client run dev
 - `/signup` è placeholder (UI pronta)
 - `/user/dashboard` e `/seller/dashboard` sono placeholder protetti (richiede user.role corrispondente)
 Nella prossima iterazione attiviamo signup/login reale via Supabase Auth + provisioning profili.
+
+
+## User/Seller Auth (abilitato)
+- Signup: `/signup` (scegli user/seller)
+- Login: `/login` (scegli user/seller)
+- Dashboard: `/user/dashboard` o `/seller/dashboard`
+
+> Nota: se in Supabase è attiva la conferma email obbligatoria, la signup potrebbe non restituire sessione; per questo MVP conviene disattivarla in Auth settings.

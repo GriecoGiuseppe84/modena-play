@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { adminLogin } from '../services/auth';
+import { login as publicLogin } from '../services/publicAuth';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -18,7 +19,9 @@ export default function LoginPage() {
     setBusy(true); setError(null);
     try {
       if (mode !== 'admin') {
-        setError('Area User/Seller: login completo verrà attivato nella prossima iterazione. Per ora usa Admin.');
+        const u = await publicLogin(email, password);
+        setUser(u);
+        nav(mode === 'seller' ? '/seller/dashboard' : '/user/dashboard', { replace: true });
         return;
       }
       const u = await adminLogin(email, password);

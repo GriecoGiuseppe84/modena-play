@@ -108,6 +108,11 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 do $$ begin
+  create policy "profiles_insert_own" on public.profiles
+    for insert with check (auth.uid() = id);
+exception when duplicate_object then null; end $$;
+
+do $$ begin
   create policy "profiles_update_own" on public.profiles
     for update using (auth.uid() = id) with check (auth.uid() = id);
 exception when duplicate_object then null; end $$;
