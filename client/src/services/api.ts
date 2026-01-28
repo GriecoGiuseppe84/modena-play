@@ -1,33 +1,25 @@
-const API_URL = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+import axios from 'axios';
 
-function getAccessToken() {
-  return localStorage.getItem('mp_access') || '';
+const rawBase = (import.meta.env.VITE_API_URL as string) || 'http://localhost:10000';
+const baseURL = rawBase.replace(/\/$/, '');
+
+export const api = axios.create({
+  baseURL,
+  // ✅ niente cookie
+  withCredentials: false,
+});
+
+export function getToken() {
+  return localStorage.getItem('mp_token');
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers || {});
-  headers.set('Content-Type', 'application/json');
+export function setToken(token: string | null) {
+  if (token) localStorage.setItem('mp_token', token);
+  else localStorage.removeItem('mp_token');
 
-  const token = getAccessToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
-
-  if (res.status === 401) {
-    const rr = await fetch(`${API_URL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
-    if (rr.ok) {
-      const j = await rr.json();
-      localStorage.setItem('mp_access', j.accessToken);
-      return apiFetch<T>(path, init);
-    }
-  }
-
-  const txt = await res.text();
-  const data = txt ? (() => { try { return JSON.parse(txt); } catch { return { error: txt }; } })() : {};
-  if (!res.ok) throw new Error((data as any)?.error || `HTTP ${res.status}`);
-  return data as T;
+  if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  else delete api.defaults.headers.common['Authorization'];
 }
+
+// ✅ persist login after refresh
+setToken(getToken());
