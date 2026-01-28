@@ -22,6 +22,9 @@ const logger = pino({
 export function createApp() {
   const app = express();
 
+  // Render / reverse proxies
+  app.set('trust proxy', 1);
+
   // 🔐 Security headers
   app.use(helmet());
 

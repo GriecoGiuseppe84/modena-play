@@ -3,6 +3,18 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../database/pg';
 import { randomToken, sha256 } from '../utils/crypto';
 
+
+function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  // Cross-site cookie (frontend and api are different domains) requires SameSite=None + Secure
+  return {
+    httpOnly: true,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    secure: isProd,
+    path: '/api/auth',
+  };
+}
+
 function signAccessToken(payload: { sub: string; email: string; role: any }) {
   const secret = process.env.JWT_SECRET || '';
   return jwt.sign(payload, secret, { expiresIn: '7d' });
@@ -53,11 +65,8 @@ export async function adminLogin(req: Request, res: Response) {
     [adminId, refreshHash, expiresAt.toISOString()]
   );
 
-  res.cookie('refresh_token', refreshPlain, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/api/auth',
+    res.cookie('refresh_token', refreshPlain, {
+    ...cookieOptions(),
     expires: expiresAt,
   });
 
@@ -92,6 +101,6 @@ export async function logout(req: Request, res: Response) {
     const hash = sha256(token);
     await pool.query(`update public.refresh_tokens set revoked_at = now() where token_hash = $1`, [hash]);
   }
-  res.clearCookie('refresh_token', { path: '/api/auth' });
+    res.clearCookie('refresh_token', cookieOptions());
   return res.json({ ok: true });
 }

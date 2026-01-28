@@ -6,6 +6,17 @@ import { randomToken, sha256 } from '../utils/crypto';
 
 type Role = 'user' | 'seller';
 
+
+function cookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    secure: isProd,
+    path: '/api/auth',
+  };
+}
+
 function signAccessToken(payload: { sub: string; email: string; role: any }) {
   const secret = process.env.JWT_SECRET || '';
   return jwt.sign(payload, secret, { expiresIn: '7d' });
@@ -78,11 +89,8 @@ async function issueTokens(res: Response, userId: string, email: string, role: s
     [userId, refreshHash, expiresAt.toISOString()]
   );
 
-  res.cookie('refresh_token', refreshPlain, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/api/auth',
+    res.cookie('refresh_token', refreshPlain, {
+    ...cookieOptions(),
     expires: expiresAt,
   });
 
