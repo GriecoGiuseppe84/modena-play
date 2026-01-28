@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 
 export type JwtPayload = {
   sub: string;
@@ -6,9 +6,9 @@ export type JwtPayload = {
   email?: string;
 };
 
-const SECRET = process.env.JWT_SECRET || '';
+const SECRET: Secret = process.env.JWT_SECRET || '';
 
-export function signJwt(payload: JwtPayload, expiresIn: string = '7d') {
+export function signJwt(payload: JwtPayload, expiresIn: SignOptions['expiresIn'] = '7d') {
   if (!SECRET) throw new Error('Missing JWT_SECRET');
   return jwt.sign(payload, SECRET, { expiresIn });
 }
