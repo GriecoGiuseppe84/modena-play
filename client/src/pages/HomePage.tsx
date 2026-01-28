@@ -2,24 +2,45 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SplashIntro from '../components/common/SplashIntro';
 import logo from '../assets/modenaplay-logo.svg';
-import { getStoredUser } from '../services/auth';
+import { useAuth } from '../context/AuthContext';
 
 export default function HomePage() {
   const nav = useNavigate();
-  const [showSplash, setShowSplash] = useState(() => sessionStorage.getItem('mp_splash_done') !== '1');
+  const { token, kind } = useAuth();
 
-  const hasUser = useMemo(() => !!getStoredUser(), []);
+  const [showSplash, setShowSplash] = useState(
+    () => sessionStorage.getItem('mp_splash_done') !== '1'
+  );
+
+  const hasUser = useMemo(() => Boolean(token), [token]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {showSplash && <SplashIntro onDone={() => { sessionStorage.setItem('mp_splash_done','1'); setShowSplash(false); }} />}
+      {showSplash && (
+        <SplashIntro
+          onDone={() => {
+            sessionStorage.setItem('mp_splash_done', '1');
+            setShowSplash(false);
+          }}
+        />
+      )}
 
       <div className="max-w-5xl mx-auto px-6 pt-16">
         <div className="flex items-center justify-between gap-6">
           <img src={logo} alt="Modena Play" className="h-12 md:h-14" />
           <div className="flex gap-2">
-            <Link className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold" to="/login">Accedi</Link>
-            <Link className="px-4 py-2 rounded-lg border border-slate-800 hover:border-slate-700" to="/signup">Crea account</Link>
+            <Link
+              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-semibold"
+              to="/login"
+            >
+              Accedi
+            </Link>
+            <Link
+              className="px-4 py-2 rounded-lg border border-slate-800 hover:border-slate-700"
+              to="/signup"
+            >
+              Crea account
+            </Link>
           </div>
         </div>
 
@@ -41,16 +62,21 @@ export default function HomePage() {
               >
                 Prova subito (Signup)
               </button>
+
               <button
                 className="px-5 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700"
                 onClick={() => nav('/admin/login')}
               >
                 Accesso Admin
               </button>
+
               {hasUser && (
                 <button
                   className="px-5 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700"
-                  onClick={() => nav('/dashboard')}
+                  onClick={() => {
+                    if (kind === 'admin') nav('/admin/dashboard');
+                    else nav('/user/dashboard');
+                  }}
                 >
                   Vai alla Dashboard
                 </button>
