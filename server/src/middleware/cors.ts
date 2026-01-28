@@ -26,28 +26,23 @@ function isLocalhost(origin: string) {
   return /^https?:\/\/localhost(:\d+)?$/.test(origin);
 }
 
-function defaultAllow(origin: string) {
-  try {
-    const u = new URL(origin);
-    const h = u.hostname.toLowerCase();
-    if (h === 'modenaplay.com' || h === 'www.modenaplay.com') return true;
-    if (h === 'modenagiochi.com' || h === 'www.modenagiochi.com') return true;
-    if (isOnRender(origin)) return true; // MVP: allow Render frontend previews
-    if (isLocalhost(origin)) return true;
-  } catch {}
-  return false;
-}
+const configured = parseOrigins(process.env.CORS_ORIGINS);
 
 export const corsMiddleware = cors({
   origin(origin, cb) {
-    // allow server-to-server, curl, Postman (no Origin header)
+    // richieste server-to-server o tool (no Origin)
     if (!origin) return cb(null, true);
 
     const o = normalizeOrigin(origin);
-    const configured = parseOrigins(process.env.CORS_ORIGINS);
 
-    const allowed = configured.includes(o) || defaultAllow(o);
-    return cb(null, allowed);
+    const allowed =
+      configured.includes(o) ||
+      isOnRender(o) ||
+      isLocalhost(o) ||
+      o === 'https://modenaplay-web.onrender.com';
+
+    // se NON allowed → blocca esplicitamente
+    return cb(allowed ? null : new Error('CORS blocked'), allowed);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
