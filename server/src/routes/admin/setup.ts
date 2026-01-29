@@ -1,46 +1,21 @@
 import { Router } from 'express';
-import { Pool } from 'pg';
-import { verifyJwt } from '../../lib/jwt';
+import { pool } from '../../database/pg';
+import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
 
-/**
- * Admin guard (JWT semplice)
- * Richiede Authorization: Bearer <token> con role=admin
- */
-function requireAdmin(req: any, res: any, next: any) {
-  const auth = String(req.headers.authorization ?? '');
-  const m = auth.match(/^Bearer\s+(.+)$/i);
-  if (!m) return res.status(401).json({ error: 'Missing Bearer token' });
-
-  try {
-    const payload = verifyJwt(m[1]);
-    if (payload.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    req.auth = payload;
-    next();
-  } catch {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-router.use(requireAdmin);
-
-// ---------- DB helpers ----------
-let pool: Pool | null = null;
-
-function getPool() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('Missing DATABASE_URL');
-  if (!pool) pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } as any });
-  return pool;
-}
+// ✅ proteggi TUTTO con JWT del progetto
+router.use(requireAuth);
+router.use((req: any, res, next) => {
+  if (req.authUser?.kind !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  next();
+});
 
 async function ensureBaseSchema() {
-  const p = getPool();
-  // setup_state + system_config + affiliate_links (minimo per MVP)
-  await p.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
+  // se manca DATABASE_URL, la pool fallirà con message chiaro
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
 
-  await p.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_setup_state (
       id integer PRIMARY KEY DEFAULT 1,
       completed boolean NOT NULL DEFAULT false,
@@ -48,14 +23,13 @@ async function ensureBaseSchema() {
     );
   `);
 
-  // riga singleton
-  await p.query(`
+  await pool.query(`
     INSERT INTO admin_setup_state (id, completed)
     VALUES (1, false)
     ON CONFLICT (id) DO NOTHING;
   `);
 
-  await p.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS system_config (
       id integer PRIMARY KEY DEFAULT 1,
       app_name text NOT NULL DEFAULT 'Modena Play',
@@ -67,15 +41,13 @@ async function ensureBaseSchema() {
     );
   `);
 
-  // riga singleton
-  await p.query(`
+  await pool.query(`
     INSERT INTO system_config (id)
     VALUES (1)
     ON CONFLICT (id) DO NOTHING;
   `);
 
-  // tabella base per AdminDashboard links
-  await p.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS affiliate_links (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       title text NOT NULL,
@@ -94,39 +66,25 @@ async function ensureBaseSchema() {
 
 // ---------- Routes ----------
 
-/**
- * GET /api/admin/setup/status
- * -> { completed: boolean }
- */
 router.get('/status', async (_req, res) => {
   try {
-    const p = getPool();
     await ensureBaseSchema();
-    const r = await p.query(`SELECT completed FROM admin_setup_state WHERE id=1`);
+    const r = await pool.query(`SELECT completed FROM admin_setup_state WHERE id=1`);
     return res.json({ completed: Boolean(r.rows?.[0]?.completed) });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? 'Failed to load setup status' });
   }
 });
 
-/**
- * POST /api/admin/setup/test-db
- * -> testa connessione DB
- */
 router.post('/test-db', async (_req, res) => {
   try {
-    const p = getPool();
-    const r = await p.query('SELECT 1 as ok');
+    const r = await pool.query('SELECT 1 as ok');
     return res.json({ ok: true, db: r.rows?.[0]?.ok === 1 });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? 'DB connection failed' });
   }
 });
 
-/**
- * POST /api/admin/setup/run-migrations
- * -> crea tabelle minime
- */
 router.post('/run-migrations', async (_req, res) => {
   try {
     await ensureBaseSchema();
@@ -136,17 +94,12 @@ router.post('/run-migrations', async (_req, res) => {
   }
 });
 
-/**
- * POST /api/admin/setup/save-config
- * body: { appName, adminEmail, currency, timezone, maxClickThroughPerDay }
- */
 router.post('/save-config', async (req, res) => {
   try {
     await ensureBaseSchema();
     const { appName, adminEmail, currency, timezone, maxClickThroughPerDay } = req.body ?? {};
 
-    const p = getPool();
-    await p.query(
+    await pool.query(
       `
       UPDATE system_config
       SET app_name = COALESCE($1, app_name),
@@ -172,15 +125,10 @@ router.post('/save-config', async (req, res) => {
   }
 });
 
-/**
- * POST /api/admin/setup/complete
- * -> set completed = true
- */
 router.post('/complete', async (_req, res) => {
   try {
     await ensureBaseSchema();
-    const p = getPool();
-    await p.query(`UPDATE admin_setup_state SET completed=true, completed_at=now() WHERE id=1`);
+    await pool.query(`UPDATE admin_setup_state SET completed=true, completed_at=now() WHERE id=1`);
     return res.json({ ok: true, completed: true });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message ?? 'Complete setup failed' });

@@ -7,6 +7,8 @@ export const api = axios.create({
   baseURL,
   // ✅ niente cookie
   withCredentials: false,
+  // ✅ rende l'UX più "snappy" su Render free (se il backend è down/cold-start evitiamo attese infinite)
+  timeout: 8000,
 });
 
 export function getToken() {

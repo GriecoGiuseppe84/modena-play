@@ -3,6 +3,9 @@ import Joi from 'joi';
 import { signJwt } from '../lib/jwt';
 import { requireAuth } from '../middleware/requireAuth';
 
+// ✅ Setup Wizard routes
+import setupRouter from './admin/setup';
+
 const router = Router();
 
 const emailSchema = Joi.string().email().required();
@@ -31,9 +34,11 @@ router.post('/login', async (req, res) => {
   }
 
   const token = signJwt({ sub: 'admin', role: 'admin', email }, '7d');
-
   return res.json({ ok: true, token });
 });
+
+// ✅ /api/admin/setup/*
+router.use('/setup', setupRouter);
 
 // esempio endpoint protetto admin (opzionale)
 router.get('/me', requireAuth, (req, res) => {
