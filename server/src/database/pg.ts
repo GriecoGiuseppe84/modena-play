@@ -1,117 +1,52 @@
 import dns from 'node:dns';
-import { Pool } from 'pg';
+import pg from 'pg';
+const { Pool } = pg;
 
-// 🔒 Forza sempre IPv4-first (evita ENETUNREACH su IPv6)
 try {
   dns.setDefaultResultOrder('ipv4first');
 } catch {
   // ignore
 }
 
-type SafeDbInfo = {
-  present: boolean;
-  configured: boolean;
-  scheme: string | null;
-  host?: string;
-  message: string;
-  hints: string[];
-};
-
-function readDatabaseUrl(): string {
-  return String(process.env.DATABASE_URL ?? '').trim();
-}
-
 export function isDatabaseConfigured(): boolean {
-  const raw = readDatabaseUrl();
+  const raw = String(process.env.DATABASE_URL ?? '').trim();
   return raw.startsWith('postgres://') || raw.startsWith('postgresql://');
 }
 
-export function safeDbInfo(): SafeDbInfo {
-  const raw = readDatabaseUrl();
+export function safeDbInfo() {
+  const raw = String(process.env.DATABASE_URL ?? '').trim();
   const hints: string[] = [];
 
   if (!raw) {
-    hints.push('DATABASE_URL mancante su Render (service "modenaplay-api").');
+    hints.push('DATABASE_URL mancante su Render (service modenaplay-api).');
     hints.push('Deve essere una URI Postgres: postgresql://... NON https://...supabase.co');
-    return {
-      present: false,
-      configured: false,
-      scheme: null,
-      message: 'DATABASE_URL missing',
-      hints,
-    };
+    return { present: false, configured: false, hints };
   }
-
-  const scheme = raw.split(':')[0]?.toLowerCase() || null;
-  const ok = isDatabaseConfigured();
 
   if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    hints.push('DATABASE_URL sembra un URL HTTP. Deve iniziare con postgresql:// o postgres://');
+    hints.push('DATABASE_URL è un URL HTTP. Deve iniziare con postgresql:// o postgres://');
   }
-  if (!ok) {
-    hints.push(
-      'Esempio: postgresql://postgres:<PASSWORD>@db.<project-ref>.supabase.co:5432/postgres?sslmode=require'
-    );
+  if (!isDatabaseConfigured()) {
+    hints.push('Formato atteso: postgresql://postgres:<PWD>@db.<ref>.supabase.co:5432/postgres?sslmode=require');
   }
-
-  let host: string | undefined;
-  try {
-    host = new URL(raw).hostname || undefined;
-  } catch {
-    // ignore
-  }
-
-  return {
-    present: true,
-    configured: ok,
-    scheme,
-    host,
-    message: ok ? 'DATABASE_URL looks OK' : 'DATABASE_URL looks invalid',
-    hints,
-  };
+  return { present: true, configured: isDatabaseConfigured(), hints };
 }
 
-// compat (se altri file la importano)
-export const databaseConfigHint = safeDbInfo;
-
 export const pool = new Pool({
-  connectionString: readDatabaseUrl() || undefined,
+  connectionString: String(process.env.DATABASE_URL ?? '') || undefined,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
   connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 5000),
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 10000),
   max: Number(process.env.PG_POOL_MAX ?? 10),
 });
 
-// ✅ IMPORTANTISSIMO: evita crash del processo su errori di rete/idle client
+// ✅ evita crash del processo quando la pool emette error (rete/ipv6/idle client)
 pool.on('error', (err) => {
-  console.error('[pg] pool error (handled, not crashing):', err?.message || err);
+  // eslint-disable-next-line no-console
+  console.error('[pg] pool error (handled):', err?.message || err);
 });
 
-export function withTimeout<T>(
-  p: Promise<T>,
-  ms: number,
-  onTimeoutMsg = `timeout of ${ms}ms exceeded`
-): Promise<T> {
-  let t: NodeJS.Timeout;
-  const timeout = new Promise<never>((_, rej) => {
-    t = setTimeout(() => rej(new Error(onTimeoutMsg)), ms);
-  });
-  return Promise.race([p, timeout]).finally(() => clearTimeout(t!)) as Promise<T>;
-}
-
-export async function pgPing(timeoutMs = 6000): Promise<boolean> {
-  if (!isDatabaseConfigured()) {
-    throw new Error('DATABASE_URL not configured (must start with postgresql:// or postgres://)');
-  }
-  const r = await withTimeout(
-    pool.query('select 1 as ok'),
-    timeoutMs,
-    'Connection terminated due to connection timeout'
-  );
-  return r.rows?.[0]?.ok === 1;
-}
-
-export async function pgNow(): Promise<any> {
+export async function pgNow() {
   const r = await pool.query('select now() as now');
   return r.rows?.[0]?.now;
 }

@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { pool, pgPing, safeDbInfo, isDatabaseConfigured } from '../../database/pg';
+import { pool, isDatabaseConfigured, safeDbInfo } from '../../database/pg';
 import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
 
-// ✅ proteggi TUTTO con JWT del progetto
 router.use(requireAuth);
 router.use((req: any, res, next) => {
   if (req.authUser?.kind !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -63,12 +62,9 @@ async function ensureBaseSchema() {
   `);
 }
 
-// ✅ Alias per evitare 404 su /api/admin/setup
+// ✅ risolve il 404 su GET /api/admin/setup
 router.get('/', async (_req, res) => {
-  return res.json({
-    ok: true,
-    db: safeDbInfo(),
-  });
+  return res.json({ ok: true, db: safeDbInfo() });
 });
 
 router.get('/status', async (_req, res) => {
@@ -78,9 +74,9 @@ router.get('/status', async (_req, res) => {
     }
     await ensureBaseSchema();
     const r = await pool.query(`SELECT completed FROM admin_setup_state WHERE id=1`);
-    return res.json({ completed: Boolean(r.rows?.[0]?.completed), db: safeDbInfo() });
+    return res.json({ completed: Boolean(r.rows?.[0]?.completed) });
   } catch (e: any) {
-    return res.status(503).json({ error: e?.message ?? 'Failed to load setup status', db: safeDbInfo() });
+    return res.status(503).json({ error: e?.message ?? 'DB unreachable', db: safeDbInfo() });
   }
 });
 
@@ -89,10 +85,9 @@ router.post('/test-db', async (_req, res) => {
     if (!isDatabaseConfigured()) {
       return res.status(500).json({ ok: false, error: 'DB not configured', db: safeDbInfo() });
     }
-    const ok = await pgPing(6000);
-    return res.json({ ok: true, db: ok, info: safeDbInfo() });
+    const r = await pool.query('SELECT 1 as ok');
+    return res.json({ ok: true, db: r.rows?.[0]?.ok === 1 });
   } catch (e: any) {
-    // ⚠️ 503 per errori rete/DB unreachable (niente crash => niente 502 Render)
     return res.status(503).json({ ok: false, error: e?.message ?? 'DB connection failed', db: safeDbInfo() });
   }
 });
