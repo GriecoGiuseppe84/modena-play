@@ -1,4 +1,12 @@
+import dns from 'node:dns';
 import { Pool } from 'pg';
+
+// 🔒 Forza sempre IPv4-first (evita ENETUNREACH su IPv6)
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // ignore
+}
 
 type SafeDbInfo = {
   present: boolean;
@@ -13,20 +21,18 @@ function readDatabaseUrl(): string {
   return String(process.env.DATABASE_URL ?? '').trim();
 }
 
-// ✅ Required by your existing imports
 export function isDatabaseConfigured(): boolean {
   const raw = readDatabaseUrl();
   return raw.startsWith('postgres://') || raw.startsWith('postgresql://');
 }
 
-// ✅ Required by your existing imports
 export function safeDbInfo(): SafeDbInfo {
   const raw = readDatabaseUrl();
   const hints: string[] = [];
 
   if (!raw) {
-    hints.push('DATABASE_URL mancante nel service "modenaplay-api" su Render.');
-    hints.push('Deve essere una URI Postgres (postgresql://...), NON https://<project>.supabase.co');
+    hints.push('DATABASE_URL mancante su Render (service "modenaplay-api").');
+    hints.push('Deve essere una URI Postgres: postgresql://... NON https://...supabase.co');
     return {
       present: false,
       configured: false,
@@ -44,7 +50,7 @@ export function safeDbInfo(): SafeDbInfo {
   }
   if (!ok) {
     hints.push(
-      'Formato atteso (esempio): postgresql://postgres:<PASSWORD>@db.<project-ref>.supabase.co:5432/postgres?sslmode=require'
+      'Esempio: postgresql://postgres:<PASSWORD>@db.<project-ref>.supabase.co:5432/postgres?sslmode=require'
     );
   }
 
@@ -65,18 +71,20 @@ export function safeDbInfo(): SafeDbInfo {
   };
 }
 
-// Compat export (se altri file la usano)
+// compat (se altri file la importano)
 export const databaseConfigHint = safeDbInfo;
-
-// -------- Pool + helpers --------
 
 export const pool = new Pool({
   connectionString: readDatabaseUrl() || undefined,
-  // Supabase Postgres richiede SSL in produzione
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
   connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 5000),
   idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 10000),
   max: Number(process.env.PG_POOL_MAX ?? 10),
+});
+
+// ✅ IMPORTANTISSIMO: evita crash del processo su errori di rete/idle client
+pool.on('error', (err) => {
+  console.error('[pg] pool error (handled, not crashing):', err?.message || err);
 });
 
 export function withTimeout<T>(
@@ -91,9 +99,9 @@ export function withTimeout<T>(
   return Promise.race([p, timeout]).finally(() => clearTimeout(t!)) as Promise<T>;
 }
 
-export async function pgPing(timeoutMs = 5000): Promise<boolean> {
+export async function pgPing(timeoutMs = 6000): Promise<boolean> {
   if (!isDatabaseConfigured()) {
-    throw new Error('DATABASE_URL is not configured (must start with postgresql:// or postgres://)');
+    throw new Error('DATABASE_URL not configured (must start with postgresql:// or postgres://)');
   }
   const r = await withTimeout(
     pool.query('select 1 as ok'),

@@ -1,23 +1,15 @@
 import { Router } from 'express';
-import { pool, isDatabaseConfigured, safeDbInfo, withTimeout } from '../../database/pg';
+import { pool, pgPing, safeDbInfo, isDatabaseConfigured } from '../../database/pg';
 import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
 
-// ✅ Proteggi TUTTO con JWT del progetto
+// ✅ proteggi TUTTO con JWT del progetto
 router.use(requireAuth);
 router.use((req: any, res, next) => {
   if (req.authUser?.kind !== 'admin') return res.status(403).json({ error: 'Admin only' });
   next();
 });
-
-const HINTS = [
-  'Suggerimenti:',
-  '(1) verifica che il backend non sia in cold-start;',
-  '(2) su Render imposta DATABASE_URL nel service "modenaplay-api" (Environment) e riavvia;',
-  '(3) se usi Supabase, copia la connection string "Direct connection" (port 5432) dalla dashboard;',
-  '(4) attenzione a password con caratteri speciali: usa la stringa fornita da Supabase (già corretta) o URL-encode.',
-].join(' ');
 
 async function ensureBaseSchema() {
   await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
@@ -71,107 +63,52 @@ async function ensureBaseSchema() {
   `);
 }
 
-function normalizeErr(e: any) {
-  const msg = String(e?.message || e || '');
-  const lower = msg.toLowerCase();
-  const isTimeout =
-    lower.includes('timeout') ||
-    lower.includes('etimedout') ||
-    lower.includes('econnrefused') ||
-    lower.includes('connection terminated due to connection timeout');
-  return { msg, isTimeout };
-}
-
-async function getSetupStatusPayload() {
-  // Non deve MAI rompere la UI con 500: restituisce sempre un JSON leggibile.
-  if (!isDatabaseConfigured()) {
-    return {
-      completed: false,
-      db: { ok: false, error: 'DATABASE_URL missing', info: safeDbInfo() },
-      action: HINTS,
-    };
-  }
-
-  // Ping rapido (non crea schema)
-  try {
-    await withTimeout(pool.query('SELECT 1 as ok'), 5000, 'DB connection timeout');
-  } catch (e: any) {
-    const { msg, isTimeout } = normalizeErr(e);
-    return {
-      completed: false,
-      db: { ok: false, error: msg, info: safeDbInfo() },
-      action: HINTS,
-      degraded: true,
-      ...(isTimeout ? { code: 504 } : {}),
-    };
-  }
-
-  // Se DB ok, prova a leggere lo stato setup (creando schema base se necessario)
-  try {
-    await withTimeout(ensureBaseSchema(), 15000, 'Schema init timeout');
-    const r = await pool.query(`SELECT completed FROM admin_setup_state WHERE id=1`);
-    return { completed: Boolean(r.rows?.[0]?.completed), db: { ok: true, info: safeDbInfo() } };
-  } catch (e: any) {
-    const { msg } = normalizeErr(e);
-    return {
-      completed: false,
-      db: { ok: true, info: safeDbInfo() },
-      error: msg,
-      action: 'DB ok ma schema non inizializzabile. Controlla permessi/estensioni su Postgres.',
-    };
-  }
-}
-
-// ---------- Routes ----------
-
-// Alias: GET /api/admin/setup
+// ✅ Alias per evitare 404 su /api/admin/setup
 router.get('/', async (_req, res) => {
-  const payload = await getSetupStatusPayload();
-  return res.json(payload);
+  return res.json({
+    ok: true,
+    db: safeDbInfo(),
+  });
 });
 
-// Compat: GET /api/admin/setup/status
 router.get('/status', async (_req, res) => {
-  const payload = await getSetupStatusPayload();
-  return res.json(payload);
+  try {
+    if (!isDatabaseConfigured()) {
+      return res.status(500).json({ error: 'DB not configured', db: safeDbInfo() });
+    }
+    await ensureBaseSchema();
+    const r = await pool.query(`SELECT completed FROM admin_setup_state WHERE id=1`);
+    return res.json({ completed: Boolean(r.rows?.[0]?.completed), db: safeDbInfo() });
+  } catch (e: any) {
+    return res.status(503).json({ error: e?.message ?? 'Failed to load setup status', db: safeDbInfo() });
+  }
 });
 
 router.post('/test-db', async (_req, res) => {
-  if (!isDatabaseConfigured()) {
-    return res.status(503).json({ error: 'DATABASE_URL missing', action: HINTS });
-  }
   try {
-    const r = await withTimeout(pool.query('SELECT 1 as ok'), 8000, 'DB connection timeout');
-    return res.json({ ok: true, db: r.rows?.[0]?.ok === 1, info: safeDbInfo() });
+    if (!isDatabaseConfigured()) {
+      return res.status(500).json({ ok: false, error: 'DB not configured', db: safeDbInfo() });
+    }
+    const ok = await pgPing(6000);
+    return res.json({ ok: true, db: ok, info: safeDbInfo() });
   } catch (e: any) {
-    const { msg, isTimeout } = normalizeErr(e);
-    return res.status(isTimeout ? 504 : 502).json({
-      error: msg || 'DB connection failed',
-      action: HINTS,
-      info: safeDbInfo(),
-    });
+    // ⚠️ 503 per errori rete/DB unreachable (niente crash => niente 502 Render)
+    return res.status(503).json({ ok: false, error: e?.message ?? 'DB connection failed', db: safeDbInfo() });
   }
 });
 
 router.post('/run-migrations', async (_req, res) => {
-  if (!isDatabaseConfigured()) {
-    return res.status(503).json({ error: 'DATABASE_URL missing', action: HINTS });
-  }
   try {
-    await withTimeout(ensureBaseSchema(), 45000, 'Migrations timeout');
+    await ensureBaseSchema();
     return res.json({ ok: true, migrated: true });
   } catch (e: any) {
-    const { msg, isTimeout } = normalizeErr(e);
-    return res.status(isTimeout ? 504 : 500).json({ error: msg ?? 'Migrations failed', action: HINTS });
+    return res.status(500).json({ error: e?.message ?? 'Migrations failed' });
   }
 });
 
 router.post('/save-config', async (req, res) => {
-  if (!isDatabaseConfigured()) {
-    return res.status(503).json({ error: 'DATABASE_URL missing', action: HINTS });
-  }
   try {
-    await withTimeout(ensureBaseSchema(), 20000, 'Schema init timeout');
+    await ensureBaseSchema();
     const { appName, adminEmail, currency, timezone, maxClickThroughPerDay } = req.body ?? {};
 
     await pool.query(
@@ -196,22 +133,17 @@ router.post('/save-config', async (req, res) => {
 
     return res.json({ ok: true });
   } catch (e: any) {
-    const { msg, isTimeout } = normalizeErr(e);
-    return res.status(isTimeout ? 504 : 500).json({ error: msg ?? 'Save config failed', action: HINTS });
+    return res.status(500).json({ error: e?.message ?? 'Save config failed' });
   }
 });
 
 router.post('/complete', async (_req, res) => {
-  if (!isDatabaseConfigured()) {
-    return res.status(503).json({ error: 'DATABASE_URL missing', action: HINTS });
-  }
   try {
-    await withTimeout(ensureBaseSchema(), 20000, 'Schema init timeout');
+    await ensureBaseSchema();
     await pool.query(`UPDATE admin_setup_state SET completed=true, completed_at=now() WHERE id=1`);
     return res.json({ ok: true, completed: true });
   } catch (e: any) {
-    const { msg, isTimeout } = normalizeErr(e);
-    return res.status(isTimeout ? 504 : 500).json({ error: msg ?? 'Complete setup failed', action: HINTS });
+    return res.status(500).json({ error: e?.message ?? 'Complete setup failed' });
   }
 });
 
