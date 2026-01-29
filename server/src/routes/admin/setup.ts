@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { pool } from '../../database/pg';
+import { pool, isDatabaseConfigured, databaseConfigHint } from '../../database/pg';
 import { requireAuth } from '../../middleware/requireAuth';
 
 const router = Router();
@@ -12,6 +12,11 @@ router.use((req: any, res, next) => {
 });
 
 async function ensureBaseSchema() {
+  // Fail fast: senza DATABASE_URL la connessione può “pendere” e far scattare il timeout lato client.
+  if (!isDatabaseConfigured()) {
+    throw new Error(databaseConfigHint());
+  }
+
   // se manca DATABASE_URL, la pool fallirà con message chiaro
   await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
 
@@ -78,10 +83,27 @@ router.get('/status', async (_req, res) => {
 
 router.post('/test-db', async (_req, res) => {
   try {
-    const r = await pool.query('SELECT 1 as ok');
-    return res.json({ ok: true, db: r.rows?.[0]?.ok === 1 });
+    if (!isDatabaseConfigured()) {
+      return res.status(500).json({
+        error: databaseConfigHint(),
+        action: 'Imposta DATABASE_URL e riavvia il servizio API su Render.',
+      });
+    }
+
+    const start = Date.now();
+
+    // Ulteriore protezione: se per qualunque motivo la query/connessione impiega troppo,
+    // rispondiamo con 504 invece di lasciare il client in timeout.
+    const r = await Promise.race([
+      pool.query('SELECT 1 as ok'),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('DB connection timeout')), 7_000)),
+    ]) as any;
+
+    return res.json({ ok: true, db: r.rows?.[0]?.ok === 1, tookMs: Date.now() - start });
   } catch (e: any) {
-    return res.status(500).json({ error: e?.message ?? 'DB connection failed' });
+    const msg = String(e?.message || 'DB connection failed');
+    const isTimeout = msg.toLowerCase().includes('timeout');
+    return res.status(isTimeout ? 504 : 500).json({ error: msg });
   }
 });
 

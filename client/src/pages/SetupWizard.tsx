@@ -40,8 +40,16 @@ export default function SetupWizard() {
     try {
       await fn();
     } catch (e: any) {
-      const msg = e?.response?.data?.error || e?.message || 'Errore';
-      setError(msg);
+      const base = e?.response?.data?.error || e?.message || 'Errore';
+      const isTimeout =
+        String(base).toLowerCase().includes('timeout') ||
+        String(e?.code || '').toUpperCase().includes('ECONNABORTED');
+
+      const hint = isTimeout
+        ? '\n\nSuggerimenti: (1) verifica che il backend non sia in cold-start; (2) su Render imposta DATABASE_URL nel service "modenaplay-api" (Environment) e riavvia; (3) controlla i Runtime Logs per errori di connessione Postgres.'
+        : '';
+
+      setError(String(base) + hint);
       throw e;
     } finally {
       setBusy(false);
@@ -49,12 +57,12 @@ export default function SetupWizard() {
   }
 
   async function step1() {
-    await run(() => api.post('/api/admin/setup/test-db'));
+    await run(() => api.post('/api/admin/setup/test-db', null, { timeout: 25_000 }));
     setStep(2);
   }
 
   async function step2() {
-    await run(() => api.post('/api/admin/setup/run-migrations'));
+    await run(() => api.post('/api/admin/setup/run-migrations', null, { timeout: 45_000 }));
     setStep(3);
   }
 
@@ -66,7 +74,7 @@ export default function SetupWizard() {
         currency,
         timezone,
         maxClickThroughPerDay,
-      })
+      }, { timeout: 20_000 })
     );
     setStep(4);
   }
@@ -74,12 +82,12 @@ export default function SetupWizard() {
   async function step4() {
     // nel backend hai /api/health (non /api/health senza prefix) → tu hai healthRoutes su /api/health
     // quindi qui usiamo quello:
-    await run(() => api.get('/api/health'));
+    await run(() => api.get('/api/health', { timeout: 20_000 }));
     setStep(5);
   }
 
   async function complete() {
-    await run(() => api.post('/api/admin/setup/complete'));
+    await run(() => api.post('/api/admin/setup/complete', null, { timeout: 20_000 }));
     nav('/admin/dashboard', { replace: true });
   }
 

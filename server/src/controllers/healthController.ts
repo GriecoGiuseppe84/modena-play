@@ -1,36 +1,66 @@
 import type { Request, Response } from 'express';
 import { getSupabaseAdmin } from '../database/supabase';
+import { pool, isDatabaseConfigured, databaseConfigHint } from '../database/pg';
 
 export async function healthHandler(_req: Request, res: Response) {
+  const timestamp = new Date().toISOString();
+
+  // 1) Postgres (DATABASE_URL) è il requisito principale per l'MVP.
+  if (!isDatabaseConfigured()) {
+    return res.status(500).json({
+      status: 'error',
+      database: 'missing',
+      error: databaseConfigHint(),
+      timestamp,
+    });
+  }
+
   try {
-    const client = getSupabaseAdmin();
+    // ping rapido DB + lettura setup status
+    const start = Date.now();
+    await Promise.race([
+      pool.query('SELECT 1 as ok'),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('DB connection timeout')), 7_000)),
+    ]);
 
-    // Best-effort DB ping: try selecting from a table that should exist after setup.
-    // If schema isn't initialized yet, we still confirm the client is configured.
-    const { error } = await client.from('admin_config').select('id').limit(1);
+    const reg = await pool.query(`SELECT to_regclass('public.admin_setup_state') as t`);
+    const hasSetupTable = Boolean(reg.rows?.[0]?.t);
+    let completed: boolean | null = null;
+    if (hasSetupTable) {
+      const st = await pool.query('SELECT completed FROM admin_setup_state WHERE id=1');
+      completed = Boolean(st.rows?.[0]?.completed);
+    }
 
-    if (error) {
-      // If table missing (setup not run), still show "configured" but flag schema.
-      const msg = String(error.message || '');
-      const schemaNotReady =
-        msg.toLowerCase().includes('relation') && msg.toLowerCase().includes('does not exist');
-
-      return res.status(schemaNotReady ? 200 : 500).json({
-        status: schemaNotReady ? 'ok' : 'error',
-        database: schemaNotReady ? 'configured' : 'error',
-        schema: schemaNotReady ? 'missing' : 'unknown',
-        error: schemaNotReady ? undefined : error.message,
-        timestamp: new Date().toISOString(),
-      });
+    // 2) Supabase admin: best-effort (non deve rompere health se manca)
+    let supabase: 'ok' | 'missing' | 'error' = 'missing';
+    let supabaseError: string | undefined;
+    try {
+      const client = getSupabaseAdmin();
+      const { error } = await client.from('profiles').select('id').limit(1);
+      supabase = error ? 'error' : 'ok';
+      supabaseError = error ? error.message : undefined;
+    } catch (e: any) {
+      supabase = 'missing';
+      supabaseError = String(e?.message || e);
     }
 
     return res.json({
       status: 'ok',
       database: 'connected',
-      schema: 'ready',
-      timestamp: new Date().toISOString(),
+      setup: { table: hasSetupTable ? 'present' : 'missing', completed },
+      supabase,
+      supabaseError,
+      tookMs: Date.now() - start,
+      timestamp,
     });
   } catch (e: any) {
-    return res.status(500).json({ status: 'error', error: String(e?.message || e), timestamp: new Date().toISOString() });
+    const msg = String(e?.message || e);
+    const isTimeout = msg.toLowerCase().includes('timeout');
+    return res.status(isTimeout ? 504 : 500).json({
+      status: 'error',
+      database: 'error',
+      error: msg,
+      timestamp,
+    });
   }
 }
