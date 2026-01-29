@@ -28,6 +28,14 @@ export function isDatabaseConfigured(): boolean {
   return raw.startsWith('postgres://') || raw.startsWith('postgresql://');
 }
 
+function safeHostFromUrl(raw: string): string | undefined {
+  try {
+    return new URL(raw).hostname || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // ✅ Some files import this name
 export function safeDbInfo(): DbHint {
   const raw = readDatabaseUrl();
@@ -56,12 +64,7 @@ export function safeDbInfo(): DbHint {
     );
   }
 
-  let host: string | undefined;
-  try {
-    host = new URL(raw).hostname || undefined;
-  } catch {
-    // ignore
-  }
+  const host = safeHostFromUrl(raw);
 
   return {
     present: true,
@@ -76,12 +79,39 @@ export function safeDbInfo(): DbHint {
 // ✅ healthController importa questo nome
 export const databaseConfigHint = safeDbInfo;
 
+// ---- Pool config ----
+
+const DB_URL = readDatabaseUrl();
+
+// Timeouts "safe defaults"
+const CONNECT_TIMEOUT_MS = Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 7000);
+const IDLE_TIMEOUT_MS = Number(process.env.PG_IDLE_TIMEOUT_MS ?? 10000);
+const POOL_MAX = Number(process.env.PG_POOL_MAX ?? 10);
+const STATEMENT_TIMEOUT_MS = Number(process.env.PG_STATEMENT_TIMEOUT_MS ?? 8000);
+
+// ✅ Pool Postgres
 export const pool = new Pool({
-  connectionString: readDatabaseUrl() || undefined,
+  connectionString: DB_URL || undefined,
+
+  // Supabase Postgres richiede SSL in produzione
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-  connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 5000),
-  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 10000),
-  max: Number(process.env.PG_POOL_MAX ?? 10),
+
+  connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
+  idleTimeoutMillis: IDLE_TIMEOUT_MS,
+  max: POOL_MAX,
+
+  // ✅ FIX DEFINITIVO Render IPv6: forza IPv4 nel socket
+  // (evita connect ENETUNREACH su indirizzi 2a05:...:5432)
+  ...( { family: 4 } as any ),
+});
+
+// ✅ Set session statement timeout per evitare query “appese”
+pool.on('connect', (client) => {
+  client
+    .query(`SET statement_timeout = ${Math.max(1000, STATEMENT_TIMEOUT_MS)}`)
+    .catch(() => {
+      // ignore
+    });
 });
 
 // ✅ evita crash del processo su errori rete/idle clients
@@ -89,6 +119,21 @@ pool.on('error', (err) => {
   // eslint-disable-next-line no-console
   console.error('[pg] pool error (handled):', err?.message || err);
 });
+
+// Debug utile (non stampa segreti)
+const hint = safeDbInfo();
+if (process.env.NODE_ENV !== 'production') {
+  // eslint-disable-next-line no-console
+  console.log('[pg] config:', {
+    configured: hint.configured,
+    scheme: hint.scheme,
+    host: hint.host,
+    connectTimeoutMs: CONNECT_TIMEOUT_MS,
+    statementTimeoutMs: STATEMENT_TIMEOUT_MS,
+    poolMax: POOL_MAX,
+    family: 4,
+  });
+}
 
 export function withTimeout<T>(
   p: Promise<T>,
@@ -106,11 +151,13 @@ export async function pgPing(timeoutMs = 6000): Promise<boolean> {
   if (!isDatabaseConfigured()) {
     throw new Error('DATABASE_URL not configured (must start with postgresql:// or postgres://)');
   }
+
   const r = await withTimeout(
     pool.query('select 1 as ok'),
     timeoutMs,
     'Connection terminated due to connection timeout'
   );
+
   return r.rows?.[0]?.ok === 1;
 }
 
