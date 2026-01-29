@@ -1,41 +1,61 @@
 import pg from 'pg';
 const { Pool } = pg;
 
-function readDatabaseUrl() {
-  return String(process.env.DATABASE_URL || '').trim();
-}
-
 /**
- * Pool Postgres usata per le query applicative.
- *
- * Importante:
- * - Se DATABASE_URL non è settata, NON vogliamo “impiccare” le richieste.
- *   Le route che dipendono dal DB devono fare un check esplicito e rispondere
- *   con un errore chiaro.
- * - Impostiamo connectionTimeoutMillis per evitare che un tentativo di connessione
- *   rimanga appeso a lungo (il client front-end di default ha timeout 8s).
+ * Postgres pool for Supabase/Render.
+ * - In production we force SSL with rejectUnauthorized=false (common on managed Postgres).
+ * - We set connectionTimeoutMillis so we fail fast instead of hanging the request.
  */
 export const pool = new Pool({
-  ...(readDatabaseUrl() ? { connectionString: readDatabaseUrl() } : {}),
+  connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-  max: Math.max(1, Number(process.env.PG_POOL_MAX ?? 5)),
-  idleTimeoutMillis: Math.max(1_000, Number(process.env.PG_IDLE_TIMEOUT_MS ?? 30_000)),
-  connectionTimeoutMillis: Math.max(1_000, Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 5_000)),
+  // Fail-fast (important on Render free tiers / misconfig)
+  connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS ?? 6000),
+  // keep pool stable
+  max: Number(process.env.PG_POOL_MAX ?? 10),
+  idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 30000),
+  keepAlive: true,
 });
-
-export function isDatabaseConfigured() {
-  return Boolean(readDatabaseUrl());
-}
-
-export function databaseConfigHint() {
-  return (
-    'DATABASE_URL mancante o vuota.\n' +
-    'Su Render → service "modenaplay-api" → Environment, imposta DATABASE_URL con la connection string PostgreSQL.\n' +
-    'Se usi Supabase: Project Settings → Database → Connection string (URI).'
-  );
-}
 
 export async function pgNow() {
   const r = await pool.query('select now() as now');
   return r.rows?.[0]?.now;
+}
+
+/**
+ * Helper: run a promise with a hard timeout (so the route can return 504).
+ */
+export async function withTimeout<T>(p: Promise<T>, ms: number, onTimeoutMsg = 'Timeout'): Promise<T> {
+  let t: any;
+  const timeout = new Promise<never>((_, reject) => {
+    t = setTimeout(() => reject(new Error(onTimeoutMsg)), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+export function isDatabaseConfigured() {
+  return Boolean(String(process.env.DATABASE_URL || '').trim());
+}
+
+export function safeDbInfo() {
+  // Never leak password. Extract host/port/db/user for debugging.
+  try {
+    const v = String(process.env.DATABASE_URL || '').trim();
+    if (!v) return { configured: false as const };
+    const u = new URL(v);
+    return {
+      configured: true as const,
+      host: u.hostname,
+      port: u.port || '5432',
+      database: u.pathname?.replace(/^\//, '') || '',
+      user: decodeURIComponent(u.username || ''),
+      ssl: process.env.NODE_ENV === 'production' ? true : false,
+    };
+  } catch {
+    return { configured: true as const, parseError: true as const };
+  }
 }
