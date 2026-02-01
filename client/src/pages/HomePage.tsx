@@ -1,30 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import SplashIntro from '../components/common/SplashIntro';
 import logo from '../assets/modenaplay-logo.svg';
 import { useAuth } from '../context/AuthContext';
 
 export default function HomePage() {
   const nav = useNavigate();
-  const { token, kind } = useAuth();
-
-  const [showSplash, setShowSplash] = useState(
-    () => sessionStorage.getItem('mp_splash_done') !== '1'
-  );
+  const { token, kind, role } = useAuth();
 
   const hasUser = useMemo(() => Boolean(token), [token]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {showSplash && (
-        <SplashIntro
-          onDone={() => {
-            sessionStorage.setItem('mp_splash_done', '1');
-            setShowSplash(false);
-          }}
-        />
-      )}
-
       <div className="max-w-5xl mx-auto px-6 pt-16">
         <div className="flex items-center justify-between gap-6">
           <img src={logo} alt="Modena Play" className="h-12 md:h-14" />
@@ -47,12 +33,12 @@ export default function HomePage() {
         <div className="mt-14 grid md:grid-cols-2 gap-8 items-center">
           <div>
             <h1 className="text-4xl md:text-5xl font-black leading-tight">
-              Affiliate hub + Admin dashboard,
-              <span className="text-indigo-300"> pronto</span>.
+              Portale Modena Play
+              <span className="text-indigo-300"> (MVP)</span>.
             </h1>
             <p className="mt-4 text-slate-400">
-              MVP “Modena Play”: Setup Wizard (una sola volta), gestione link affiliate, tracciamento click e KPI base.
-              Area minima User/Seller per iniziare a testare signup/login e flussi.
+              Base pulita e funzionante: autenticazione (solo password), recupero password e aree protette per ruolo.
+              La configurazione DB è una sezione Admin separata e opzionale.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -75,7 +61,7 @@ export default function HomePage() {
                   className="px-5 py-2.5 rounded-xl border border-slate-800 hover:border-slate-700"
                   onClick={() => {
                     if (kind === 'admin') nav('/admin/dashboard');
-                    else nav('/user/dashboard');
+                    else nav(role === 'seller' ? '/seller/dashboard' : '/user/dashboard');
                   }}
                 >
                   Vai alla Dashboard
@@ -91,19 +77,17 @@ export default function HomePage() {
           <div className="p-6 rounded-2xl border border-slate-800 bg-slate-900/20">
             <div className="text-sm font-semibold">Cosa puoi testare adesso</div>
             <ul className="mt-3 text-sm text-slate-400 space-y-2 list-disc list-inside">
-              <li>Signup e login User/Seller (ruolo su profiles)</li>
-              <li>Admin login + Setup Wizard + Dashboard</li>
-              <li>Creazione link affiliate e KPI base</li>
+              <li>Signup e login User/Seller (ruolo su Supabase Auth metadata)</li>
+              <li>Recupero password (email Supabase + pagina /reset-password)</li>
+              <li>Admin login + pagina Diagnostica DB (opzionale)</li>
             </ul>
             <div className="mt-4 text-xs text-slate-500">
-              Nota: se in Supabase Auth è attiva la conferma email, disattivala per MVP.
+              Nota: se in Supabase Auth è attiva la conferma email, potresti dover confermare prima di fare login.
             </div>
           </div>
         </div>
 
-        <div className="mt-20 pb-10 text-xs text-slate-600">
-          © 2026 Modena Play · Affiliate Platform MVP
-        </div>
+        <div className="mt-20 pb-10 text-xs text-slate-600">© 2026 Modena Play · MVP</div>
       </div>
     </div>
   );

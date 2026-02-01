@@ -1,6 +1,5 @@
 import dns from 'node:dns';
-import pg from 'pg';
-const { Pool } = pg;
+import { Pool, type PoolClient } from 'pg';
 
 // ✅ Prefer IPv4 when DNS returns both A and AAAA (Render spesso non ha IPv6 egress affidabile)
 try {
@@ -106,7 +105,7 @@ export const pool = new Pool({
 });
 
 // ✅ Set session statement timeout per evitare query “appese”
-pool.on('connect', (client) => {
+pool.on('connect', (client: PoolClient) => {
   client
     .query(`SET statement_timeout = ${Math.max(1000, STATEMENT_TIMEOUT_MS)}`)
     .catch(() => {
@@ -115,7 +114,7 @@ pool.on('connect', (client) => {
 });
 
 // ✅ evita crash del processo su errori rete/idle clients
-pool.on('error', (err) => {
+pool.on('error', (err: Error) => {
   // eslint-disable-next-line no-console
   console.error('[pg] pool error (handled):', err?.message || err);
 });
@@ -152,7 +151,8 @@ export async function pgPing(timeoutMs = 6000): Promise<boolean> {
     throw new Error('DATABASE_URL not configured (must start with postgresql:// or postgres://)');
   }
 
-  const r = await withTimeout(
+  // Explicit generic keeps TS happy even when pg typings are not yet installed
+  const r = await withTimeout<any>(
     pool.query('select 1 as ok'),
     timeoutMs,
     'Connection terminated due to connection timeout'

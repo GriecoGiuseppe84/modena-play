@@ -4,6 +4,8 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import SignupPage from './pages/SignupPage';
 import UserLoginPage from './pages/UserLoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import AdminLoginPage from './pages/AdminLoginPage';
 
 import AdminSetupPage from './pages/AdminSetupPage';
@@ -19,11 +21,15 @@ export default function App() {
 
       {/* Public auth */}
       <Route path="/login" element={<UserLoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/signup" element={<SignupPage />} />
 
       {/* Admin auth on dedicated URL */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
-      <Route path="/admin/setup" element={<AdminSetupPage />} />
+      {/* Legacy path kept for compatibility */}
+      <Route path="/admin/setup" element={<Navigate to="/admin/diagnostics" replace />} />
+      <Route path="/admin/diagnostics" element={<AdminSetupPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
 
       {/* Minimal areas */}

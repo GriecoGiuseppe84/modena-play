@@ -20,7 +20,7 @@ export default function SignupPage() {
     setInfo(null);
 
     try {
-      const { needsEmailConfirmation } = await registerUser(email, password);
+      const { needsEmailConfirmation, role: serverRole } = await registerUser(email, password, role);
 
       if (needsEmailConfirmation) {
         setInfo(
@@ -31,7 +31,7 @@ export default function SignupPage() {
         return;
       }
 
-      nav(role === 'seller' ? '/seller/dashboard' : '/user/dashboard', { replace: true });
+      nav(serverRole === 'seller' ? '/seller/dashboard' : '/user/dashboard', { replace: true });
     } catch (err: any) {
       const msg =
         err?.response?.data?.error ||

@@ -12,6 +12,7 @@ export default function SetupWizard() {
   const [step, setStep] = useState<Step>(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completed, setCompleted] = useState<boolean | null>(null);
 
   const [appName, setAppName] = useState('Modena Play');
   const [currency, setCurrency] = useState('EUR');
@@ -29,10 +30,10 @@ export default function SetupWizard() {
     api
       .get<{ completed: boolean }>('/api/admin/setup/status')
       .then((r) => {
-        if (r.data.completed) nav('/admin/dashboard', { replace: true });
+        setCompleted(Boolean(r.data.completed));
       })
-      .catch(() => {});
-  }, [nav]);
+      .catch(() => setCompleted(null));
+  }, []);
 
   async function run(fn: () => Promise<any>) {
     setBusy(true);
@@ -105,8 +106,17 @@ export default function SetupWizard() {
   return (
     <div className="min-h-screen p-6 bg-slate-950 text-slate-100">
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-2xl font-black">Setup Wizard (Admin)</h1>
-        <p className="text-sm text-slate-400">Per migrazioni Step 2 serve DATABASE_URL su Render.</p>
+        <h1 className="text-2xl font-black">Diagnostica & Setup (Admin)</h1>
+        <p className="text-sm text-slate-400">
+          Questa pagina è opzionale: serve solo per verificare il DB e (se vuoi) creare le tabelle base.
+          Per migrazioni Step 2 serve DATABASE_URL su Render.
+        </p>
+
+        {completed === true && (
+          <div className="text-sm text-emerald-300">
+            Setup DB risulta già completato ✅ (puoi comunque rieseguire i test).
+          </div>
+        )}
 
         {error && <div className="text-sm text-red-300">{error}</div>}
 
@@ -228,7 +238,7 @@ export default function SetupWizard() {
               {pill(false)}
             </div>
             <button
-              disabled={busy || step !== 5}
+              disabled={busy || step !== 5 || completed === true}
               onClick={complete}
               className="mt-3 px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold"
             >

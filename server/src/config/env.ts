@@ -1,37 +1,49 @@
-import dotenv from 'dotenv';
+/*
+ * Env helper: keep the API bootable even if some optional vars are missing.
+ * Only the Supabase public configuration is truly required for the auth MVP.
+ */
 
-dotenv.config();
-
-function req(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env var: ${name}`);
+function required(key: string): string {
+  const v = String(process.env[key] ?? '').trim();
+  if (!v) throw new Error(`Missing env: ${key}`);
   return v;
 }
 
-const NODE_ENV = process.env.NODE_ENV ?? 'development';
-const IS_PROD = NODE_ENV === 'production';
+function optional(key: string, fallback = ''): string {
+  const v = String(process.env[key] ?? '').trim();
+  return v || fallback;
+}
 
-export const ENV = {
-  NODE_ENV,
-  IS_PROD,
-  PORT: Number(process.env.PORT ?? 10000),
-
-  SUPABASE_URL: req('SUPABASE_URL'),
-  SUPABASE_SERVICE_KEY: req('SUPABASE_SERVICE_KEY'),
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
-
-  ADMIN_EMAIL: req('ADMIN_EMAIL').trim().toLowerCase(),
-  ADMIN_PASSWORD: req('ADMIN_PASSWORD'),
-
-  JWT_SECRET: req('JWT_SECRET'),
-  JWT_ISSUER: process.env.JWT_ISSUER ?? 'modenaplay-api',
-  JWT_AUDIENCE: process.env.JWT_AUDIENCE ?? 'modenaplay-platform',
-
-  CORS_ORIGINS: (process.env.CORS_ORIGINS ??
-    'http://localhost:5173,http://localhost:5174,http://localhost:3000')
+function parseCorsOrigins(raw: string): string[] {
+  const list = raw
     .split(',')
     .map((s) => s.trim())
-    .filter(Boolean),
+    .filter(Boolean);
+  return Array.from(new Set(list));
+}
 
-  COOKIE_DOMAIN: process.env.COOKIE_DOMAIN?.trim() || undefined,
+export const ENV = {
+  NODE_ENV: optional('NODE_ENV', 'development'),
+  PORT: Number(optional('PORT', '10000')),
+
+  DATABASE_URL: optional('DATABASE_URL', ''),
+
+  // ✅ required for auth routes
+  SUPABASE_URL: required('SUPABASE_URL'),
+  SUPABASE_ANON_KEY: required('SUPABASE_ANON_KEY'),
+
+  // ✅ optional (recommended for DB ops / bypass RLS)
+  SUPABASE_SERVICE_ROLE_KEY: optional('SUPABASE_SERVICE_ROLE_KEY') || optional('SUPABASE_SERVICE_KEY'),
+
+  // ✅ optional admin bootstrap
+  ADMIN_EMAIL: optional('ADMIN_EMAIL'),
+  ADMIN_PASSWORD: optional('ADMIN_PASSWORD'),
+
+  JWT_SECRET: optional('JWT_SECRET', 'dev_secret_change_me'),
+
+  // Password recovery redirect base URL (fallback to request Origin)
+  WEB_URL: optional('WEB_URL') || optional('PUBLIC_WEB_URL'),
+
+  CORS_ORIGINS: parseCorsOrigins(optional('CORS_ORIGINS', '')),
+  RATE_LIMIT_PER_MIN: Number(optional('RATE_LIMIT_PER_MIN', '100')),
 };
