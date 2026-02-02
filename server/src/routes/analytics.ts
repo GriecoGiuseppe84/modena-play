@@ -1,41 +1,57 @@
 import { Router } from 'express';
-import { pool } from '../database/pg';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/requireAuth';
+import { supabaseService } from '../lib/supabase';
 
 export const analyticsRouter = Router();
+
+// Simple analytics endpoint (currently focused on affiliate tracking).
+// NOTE: we keep it separate from /api/affiliate to avoid breaking older URLs.
+
+function requireService(res: any) {
+  if (!supabaseService) {
+    res.status(500).json({
+      error:
+        'Analytics requires SUPABASE_SERVICE_ROLE_KEY on the API service (Render) to query aggregated data safely.',
+    });
+    return null;
+  }
+  return supabaseService;
+}
+
 analyticsRouter.use(requireAuth);
 
-// Summary cards for current user (or admin ?all=1)
 analyticsRouter.get('/summary', async (req: any, res) => {
-  const all = String(req.query?.all ?? '') === '1';
-  const userId = req.user.id;
+  const service = requireService(res);
+  if (!service) return;
 
-  const where = all && req.user.role === 'admin' ? '' : 'where l.created_by_id = $1';
-  const params = all && req.user.role === 'admin' ? [] : [userId];
+  // Admin sees global numbers; other roles just see public-friendly aggregates.
+  const isAdmin = req.authUser?.kind === 'admin';
 
-  const clicks = await pool.query(
-    `select coalesce(sum(l.click_count),0)::int as clicks
-     from public.affiliate_links l ${where}`,
-    params
-  );
+  const { data: links, error } = await service
+    .from('affiliate_links')
+    .select('id, click_count, is_active')
+    .limit(1000);
 
-  const conv = await pool.query(
-    `select coalesce(count(*),0)::int as conversions,
-            coalesce(sum(c.commission_earned),0)::numeric as commission
-     from public.conversions c
-     join public.affiliate_links l on l.id = c.link_id
-     ${where}`,
-    params
-  );
+  if (error) return res.status(500).json({ error: error.message });
 
-  const clicksN = Number(clicks.rows?.[0]?.clicks ?? 0);
-  const convN = Number(conv.rows?.[0]?.conversions ?? 0);
-  const rate = clicksN > 0 ? (convN / clicksN) : 0;
+  const list = links ?? [];
+  const totalLinks = list.length;
+  const activeLinks = list.filter((l: any) => l.is_active).length;
+  const totalClicks = list.reduce((a: number, l: any) => a + Number(l.click_count ?? 0), 0);
+
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { count: last7DaysClicks, error: cErr } = await service
+    .from('affiliate_clicks')
+    .select('id', { count: 'exact', head: true })
+    .gte('clicked_at', since);
+
+  if (cErr) return res.status(500).json({ error: cErr.message });
 
   return res.json({
-    clicks: clicksN,
-    conversions: convN,
-    conversionRate: rate,
-    commission: String(conv.rows?.[0]?.commission ?? '0'),
+    scope: isAdmin ? 'global' : 'public',
+    totalLinks,
+    activeLinks,
+    totalClicks,
+    last7DaysClicks: Number(last7DaysClicks ?? 0),
   });
 });

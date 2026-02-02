@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import AppShell from '../components/AppShell';
 
 export default function ForgotPasswordPage() {
   const { requestPasswordReset } = useAuth();
@@ -27,19 +28,23 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950 text-slate-100">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-md p-6 rounded-2xl border border-slate-800 bg-slate-950/70"
-      >
-        <h1 className="text-2xl font-black">Recupera password</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Inserisci la tua email: riceverai un link per impostare una nuova password.
-        </p>
+    <AppShell
+      compact
+      title="Recupera password"
+      subtitle="Inserisci la tua email: riceverai un link per impostare una nuova password."
+      right={
+        <>
+          <Link className="mp-btn-secondary" to="/login">Login</Link>
+          <Link className="mp-btn-secondary" to="/signup">Signup</Link>
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} className="mp-card p-6 md:p-7 max-w-md mx-auto">
+        <div className="mp-badge text-modena-cyan border-modena-cyan/30 bg-modena-cyan/10">📩 Reset</div>
 
         <div className="mt-4 space-y-3">
           <input
-            className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            className="mp-input"
             placeholder="Email"
             autoComplete="username"
             value={email}
@@ -47,27 +52,28 @@ export default function ForgotPasswordPage() {
           />
 
           {done && (
-            <div className="text-sm text-emerald-300">
+            <div className="text-sm rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 p-3">
               Email inviata (se l&apos;account esiste). Controlla la posta e segui il link.
             </div>
           )}
 
-          {error && <div className="text-sm text-red-300">{error}</div>}
+          {error && (
+            <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">
+              {error}
+            </div>
+          )}
 
-          <button
-            disabled={busy || done}
-            className="w-full px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold"
-          >
+          <button disabled={busy || done} className="mp-btn-primary w-full">
             {busy ? 'Invio...' : done ? 'Inviata' : 'Invia link reset'}
           </button>
         </div>
 
-        <div className="mt-4 text-sm text-slate-400">
-          <Link className="text-indigo-300 hover:text-indigo-200" to="/login">
+        <div className="mt-4 text-sm text-slate-300">
+          <Link className="text-modena-cyan hover:brightness-110" to="/login">
             Torna al login
           </Link>
         </div>
       </form>
-    </div>
+    </AppShell>
   );
 }

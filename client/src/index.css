@@ -2,4 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    @apply font-body;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .mp-card {
+    @apply rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-glow;
+  }
+  .mp-card-soft {
+    @apply rounded-2xl border border-white/10 bg-white/[0.035] backdrop-blur-md;
+  }
+  .mp-input {
+    @apply w-full px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:outline-none focus:ring-2 focus:ring-modena-cyan/40;
+  }
+  .mp-btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition;
+  }
+  .mp-btn-primary {
+    @apply mp-btn bg-modena-cyan text-black hover:brightness-110;
+  }
+  .mp-btn-secondary {
+    @apply mp-btn bg-white/5 border border-white/10 hover:bg-white/10;
+  }
+  .mp-btn-danger {
+    @apply mp-btn bg-red-600 hover:bg-red-500;
+  }
+  .mp-badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border border-white/10 bg-white/5;
+  }
+}

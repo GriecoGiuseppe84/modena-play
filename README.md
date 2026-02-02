@@ -10,7 +10,7 @@ Vedi anche gli esempi:
 ### Server (Render: modenaplay-api)
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY` (Supabase → Project settings → API)
-- `SUPABASE_SERVICE_ROLE_KEY` (consigliata, ma non obbligatoria per il solo auth)
+- `SUPABASE_SERVICE_ROLE_KEY` (**necessaria** per Affiliate Links: crea link + tracking click + analytics)
 - `JWT_SECRET` (per token admin)
 - `CORS_ORIGINS` (es. https://modenaplay-web.onrender.com,http://localhost:5173)
 - opzionali:
@@ -38,6 +38,7 @@ npm -w client run dev
 ## Admin (opzionale)
 - Login admin: `/admin/login` (richiede `ADMIN_EMAIL` e `ADMIN_PASSWORD` su API)
 - Dashboard admin: `/admin/dashboard`
+- Modulo Affiliate Links: `/admin/affiliate-links`
 - Diagnostica DB (opzionale): `/admin/diagnostics`
   - alias legacy: `/admin/setup`
 
@@ -46,6 +47,12 @@ npm -w client run dev
 - Login: `/login` (redirect automatico in base al ruolo salvato in Supabase user_metadata)
 - Recupero password: `/forgot-password` → email → `/reset-password`
 - Dashboard: `/user/dashboard` o `/seller/dashboard` (placeholder)
+
+## Short links (tracking)
+Quando crei un link dal pannello admin, ottieni uno short link:
+- `https://<tuo-frontend>/r/<slug>`
+
+Il redirect pagina traccia il click via API e poi porta l'utente sulla `destination_url`.
 
 > Nota: se in Supabase è attiva la conferma email obbligatoria, la signup potrebbe non restituire sessione; in quel caso fai conferma email e poi login.
 
@@ -65,3 +72,13 @@ Nel client usiamo `postcss.config.cjs` e `tailwind.config.cjs` perché `client/p
 
 ### Backend note
 Il server compila in **CommonJS** (compatibile con Node 22 su Render) per evitare errori ESM su import senza estensione.
+
+
+## Pagina pubblica "Risorse"
+
+- `/risorse` → landing pubblica (marketing + filtri)
+- `/r/:slug` → redirect short-link con tracking click
+
+Admin:
+- `/admin/affiliate-links` → CRUD link + UTM builder + mini analytics
+

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import AppShell from '../components/AppShell';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -93,63 +94,58 @@ export default function SetupWizard() {
   }
 
   const pill = (ok: boolean) => (
-    <span
-      className={
-        'text-xs px-2 py-1 rounded-full border ' +
-        (ok ? 'border-emerald-500 text-emerald-300' : 'border-slate-700 text-slate-400')
-      }
-    >
+    <span className={'mp-badge ' + (ok ? 'text-emerald-200 border-emerald-500/30 bg-emerald-500/10' : 'text-slate-300')}>
       {ok ? '✅ OK' : '—'}
     </span>
   );
 
   return (
-    <div className="min-h-screen p-6 bg-slate-950 text-slate-100">
-      <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-2xl font-black">Diagnostica & Setup (Admin)</h1>
-        <p className="text-sm text-slate-400">
-          Questa pagina è opzionale: serve solo per verificare il DB e (se vuoi) creare le tabelle base.
-          Per migrazioni Step 2 serve DATABASE_URL su Render.
-        </p>
+    <AppShell
+      title="Diagnostica & Setup"
+      subtitle="Pagina opzionale: verifica DB, crea tabelle base e salva una config minima. Se lo Step 1 va in timeout, spesso è un cold-start del backend o DATABASE_URL mancante su Render."
+      right={
+        <>
+          <Link className="mp-btn-secondary" to="/admin/dashboard">Dashboard</Link>
+          <Link className="mp-btn-secondary" to="/">Home</Link>
+        </>
+      }
+    >
+      <div className="max-w-3xl mx-auto space-y-4">
 
         {completed === true && (
-          <div className="text-sm text-emerald-300">
+          <div className="text-sm rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 p-3">
             Setup DB risulta già completato ✅ (puoi comunque rieseguire i test).
           </div>
         )}
 
-        {error && <div className="text-sm text-red-300">{error}</div>}
+        {error && (
+          <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">
+            {error}
+          </div>
+        )}
 
         <div className="space-y-3">
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40">
+          <div className="mp-card p-5">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Step 1 — Verifica Connessione DB</div>
               {pill(step > 1)}
             </div>
-            <button
-              disabled={busy || step !== 1}
-              onClick={step1}
-              className="mt-3 px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
-            >
+            <button disabled={busy || step !== 1} onClick={step1} className="mt-3 mp-btn-secondary disabled:opacity-50">
               {busy && step === 1 ? 'Verifica...' : 'Esegui'}
             </button>
           </div>
 
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40">
+          <div className="mp-card p-5">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Step 2 — Crea/Verifica Tabelle</div>
               {pill(step > 2)}
             </div>
-            <button
-              disabled={busy || step !== 2}
-              onClick={step2}
-              className="mt-3 px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
-            >
+            <button disabled={busy || step !== 2} onClick={step2} className="mt-3 mp-btn-secondary disabled:opacity-50">
               {busy && step === 2 ? 'Eseguo...' : 'Esegui'}
             </button>
           </div>
 
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40">
+          <div className="mp-card p-5">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Step 3 — Configurazione</div>
               {pill(step > 3)}
@@ -159,7 +155,7 @@ export default function SetupWizard() {
               <div>
                 <label className="text-xs text-slate-400">App Name</label>
                 <input
-                  className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800"
+                  className="mp-input mt-1"
                   value={appName}
                   onChange={(e) => setAppName(e.target.value)}
                 />
@@ -169,7 +165,7 @@ export default function SetupWizard() {
                 <label className="text-xs text-slate-400">Admin Email</label>
                 <input
                   disabled
-                  className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800 opacity-70"
+                  className="mp-input mt-1 opacity-70"
                   value={adminEmail}
                 />
               </div>
@@ -177,7 +173,7 @@ export default function SetupWizard() {
               <div>
                 <label className="text-xs text-slate-400">Currency</label>
                 <select
-                  className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800"
+                  className="mp-input mt-1"
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                 >
@@ -189,7 +185,7 @@ export default function SetupWizard() {
               <div>
                 <label className="text-xs text-slate-400">Timezone</label>
                 <select
-                  className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800"
+                  className="mp-input mt-1"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
                 >
@@ -202,37 +198,29 @@ export default function SetupWizard() {
                 <label className="text-xs text-slate-400">Max clickthrough/day</label>
                 <input
                   type="number"
-                  className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800"
+                  className="mp-input mt-1"
                   value={maxClickThroughPerDay}
                   onChange={(e) => setMax(Number(e.target.value))}
                 />
               </div>
             </div>
 
-            <button
-              disabled={busy || step !== 3}
-              onClick={step3}
-              className="mt-3 px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
-            >
+            <button disabled={busy || step !== 3} onClick={step3} className="mt-3 mp-btn-primary disabled:opacity-50">
               {busy && step === 3 ? 'Salvo...' : 'Salva config'}
             </button>
           </div>
 
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40">
+          <div className="mp-card p-5">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Step 4 — Test Health API</div>
               {pill(step > 4)}
             </div>
-            <button
-              disabled={busy || step !== 4}
-              onClick={step4}
-              className="mt-3 px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50"
-            >
+            <button disabled={busy || step !== 4} onClick={step4} className="mt-3 mp-btn-secondary disabled:opacity-50">
               {busy && step === 4 ? 'Test...' : 'Esegui test'}
             </button>
           </div>
 
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40">
+          <div className="mp-card p-5">
             <div className="flex items-center justify-between">
               <div className="font-semibold">Step 5 — Completa Setup</div>
               {pill(false)}
@@ -240,13 +228,13 @@ export default function SetupWizard() {
             <button
               disabled={busy || step !== 5 || completed === true}
               onClick={complete}
-              className="mt-3 px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold"
+              className="mt-3 mp-btn-primary disabled:opacity-50"
             >
               {busy && step === 5 ? 'Completo...' : 'Completa Setup'}
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

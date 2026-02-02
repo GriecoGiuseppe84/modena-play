@@ -10,6 +10,10 @@ import AdminLoginPage from './pages/AdminLoginPage';
 
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminAffiliateLinksPage from './pages/AdminAffiliateLinksPage';
+
+import AffiliateRedirectPage from './pages/AffiliateRedirectPage';
+import ResourcesPage from './pages/ResourcesPage';
 
 import UserDashboardPage from './pages/UserDashboardPage';
 import SellerDashboardPage from './pages/SellerDashboardPage';
@@ -18,6 +22,13 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
+
+      {/* Public resources landing */}
+      <Route path="/risorse" element={<ResourcesPage />} />
+      <Route path="/resources" element={<Navigate to="/risorse" replace />} />
+
+      {/* Public short-link redirect (tracks click server-side) */}
+      <Route path="/r/:slug" element={<AffiliateRedirectPage />} />
 
       {/* Public auth */}
       <Route path="/login" element={<UserLoginPage />} />
@@ -31,6 +42,7 @@ export default function App() {
       <Route path="/admin/setup" element={<Navigate to="/admin/diagnostics" replace />} />
       <Route path="/admin/diagnostics" element={<AdminSetupPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+      <Route path="/admin/affiliate-links" element={<AdminAffiliateLinksPage />} />
 
       {/* Minimal areas */}
       <Route path="/user/dashboard" element={<UserDashboardPage />} />

@@ -45,20 +45,70 @@ async function ensureBaseSchema() {
     ON CONFLICT (id) DO NOTHING;
   `);
 
+  // ✅ Affiliate links (schema in linea con supabase/schema.sql)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS affiliate_links (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       title text NOT NULL,
       source_url text NOT NULL DEFAULT '',
-      destination_url text NOT NULL,
-      category text NOT NULL DEFAULT 'general',
+      destination_url text NOT NULL DEFAULT '',
+      network text NOT NULL DEFAULT 'generic',
+      slug text NOT NULL,
+      is_active boolean NOT NULL DEFAULT true,
       click_count integer NOT NULL DEFAULT 0,
-      conversion_count integer NOT NULL DEFAULT 0,
-      commission_rate numeric NOT NULL DEFAULT 0.05,
-      status text NOT NULL DEFAULT 'active',
       created_at timestamptz NOT NULL DEFAULT now(),
-      updated_at timestamptz NOT NULL DEFAULT now()
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (slug)
     );
+  `);
+
+  await pool.query(`create index if not exists idx_affiliate_links_active on affiliate_links (is_active);`);
+  await pool.query(`create index if not exists idx_affiliate_links_network on affiliate_links (network);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS affiliate_clicks (
+      id bigserial PRIMARY KEY,
+      link_id uuid NOT NULL REFERENCES affiliate_links(id) ON DELETE CASCADE,
+      clicked_at timestamptz NOT NULL DEFAULT now(),
+      referrer text NULL,
+      user_agent text NULL,
+      ip_hash text NULL
+    );
+  `);
+
+  await pool.query(`create index if not exists idx_affiliate_clicks_link_time on affiliate_clicks (link_id, clicked_at desc);`);
+
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION public.inc_affiliate_link_click_count()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      UPDATE affiliate_links
+      SET click_count = COALESCE(click_count,0) + 1,
+          updated_at = now()
+      WHERE id = NEW.link_id;
+      RETURN NEW;
+    END;
+    $$;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_affiliate_clicks_inc') THEN
+        CREATE TRIGGER trg_affiliate_clicks_inc
+        AFTER INSERT ON affiliate_clicks
+        FOR EACH ROW EXECUTE FUNCTION public.inc_affiliate_link_click_count();
+      END IF;
+    END $$;
+  `);
+
+  await pool.query(`
+    CREATE OR REPLACE VIEW public.affiliate_clicks_daily_total AS
+    SELECT date_trunc('day', clicked_at) as day, count(*) as clicks
+    FROM affiliate_clicks
+    GROUP BY 1;
   `);
 }
 
@@ -105,7 +155,7 @@ router.post('/run-migrations', async (_req, res) => {
     return res.json({
       ok: true,
       migrated: true,
-      tables: ['admin_setup_state', 'system_config', 'affiliate_links'],
+      tables: ['admin_setup_state', 'system_config', 'affiliate_links', 'affiliate_clicks'],
     });
   } catch (e: any) {
     return res.status(500).json({ ok: false, error: e?.message ?? 'Migrations failed', db: safeDbInfo() });

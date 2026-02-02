@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import AppShell from '../components/AppShell';
 
 export default function AdminLoginPage() {
   const nav = useNavigate();
@@ -31,19 +32,18 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950 text-slate-100">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-md p-6 rounded-2xl border border-slate-800 bg-slate-950/70"
-      >
-        <h1 className="text-2xl font-black">Admin Access</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Usa credenziali definite negli env di Render.
-        </p>
+    <AppShell
+      compact
+      title="Accesso Admin"
+      subtitle="Usa le credenziali definite negli env del backend (Render)."
+      right={<Link className="mp-btn-secondary" to="/">Home</Link>}
+    >
+      <form onSubmit={onSubmit} className="mp-card p-6 md:p-7 max-w-md mx-auto">
+        <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">🛡️ Admin</div>
 
         <div className="mt-4 space-y-3">
           <input
-            className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            className="mp-input"
             placeholder="Email admin"
             autoComplete="username"
             value={email}
@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
           />
 
           <input
-            className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            className="mp-input"
             placeholder="Password admin"
             type="password"
             autoComplete="current-password"
@@ -59,23 +59,21 @@ export default function AdminLoginPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {error && <div className="text-sm text-red-300">{error}</div>}
+          {error && (
+            <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">
+              {error}
+            </div>
+          )}
 
-          <button
-            disabled={busy}
-            className="w-full px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold"
-          >
+          <button disabled={busy} className="mp-btn-primary w-full">
             {busy ? 'Accesso...' : 'Entra (Admin)'}
           </button>
         </div>
 
-        <div className="mt-4 text-sm text-slate-400">
-          Torna al sito:{' '}
-          <Link className="text-indigo-300 hover:text-indigo-200" to="/">
-            Home
-          </Link>
+        <div className="mt-4 text-xs text-slate-400">
+          Suggerimento: se ti serve DB e tabelle, usa <Link className="text-modena-cyan hover:brightness-110" to="/admin/diagnostics">Diagnostica DB</Link> dopo il login.
         </div>
       </form>
-    </div>
+    </AppShell>
   );
 }

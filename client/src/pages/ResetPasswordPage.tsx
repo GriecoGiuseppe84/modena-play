@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../services/supabaseClient';
+import AppShell from '../components/AppShell';
 
 function parseHashParams(hash: string) {
   const h = hash.startsWith('#') ? hash.slice(1) : hash;
@@ -90,16 +91,20 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950 text-slate-100">
-      <div className="w-full max-w-md p-6 rounded-2xl border border-slate-800 bg-slate-950/70">
-        <h1 className="text-2xl font-black">Imposta nuova password</h1>
+    <AppShell
+      compact
+      title="Imposta nuova password"
+      subtitle="Completa il reset e poi torna al login."
+      right={<Link className="mp-btn-secondary" to="/login">Login</Link>}
+    >
+      <div className="mp-card p-6 md:p-7 max-w-md mx-auto">
 
-        {stage === 'loading' && <p className="mt-3 text-sm text-slate-400">Verifico il link...</p>}
+        {stage === 'loading' && <p className="mt-3 text-sm text-slate-300">Verifico il link...</p>}
 
         {stage === 'error' && (
           <div className="mt-4 space-y-3">
-            <div className="text-sm text-red-300">{error}</div>
-            <Link className="text-indigo-300 hover:text-indigo-200 text-sm" to="/forgot-password">
+            <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">{error}</div>
+            <Link className="text-modena-cyan hover:brightness-110 text-sm" to="/forgot-password">
               Richiedi un nuovo link
             </Link>
           </div>
@@ -107,8 +112,10 @@ export default function ResetPasswordPage() {
 
         {stage === 'done' && (
           <div className="mt-4 space-y-3">
-            <div className="text-sm text-emerald-300">Password aggiornata. Ora puoi fare login.</div>
-            <Link className="text-indigo-300 hover:text-indigo-200 text-sm" to="/login">
+            <div className="text-sm rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 p-3">
+              Password aggiornata. Ora puoi fare login.
+            </div>
+            <Link className="text-modena-cyan hover:brightness-110 text-sm" to="/login">
               Vai al login
             </Link>
           </div>
@@ -117,7 +124,7 @@ export default function ResetPasswordPage() {
         {stage === 'ready' && (
           <form onSubmit={onSubmit} className="mt-4 space-y-3">
             <input
-              className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+              className="mp-input"
               placeholder="Nuova password (min 6)"
               type="password"
               autoComplete="new-password"
@@ -125,7 +132,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
             <input
-              className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+              className="mp-input"
               placeholder="Conferma password"
               type="password"
               autoComplete="new-password"
@@ -133,12 +140,18 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword2(e.target.value)}
             />
 
-            {mismatch && <div className="text-sm text-red-300">Le password non coincidono.</div>}
-            {error && <div className="text-sm text-red-300">{error}</div>}
+            {mismatch && (
+              <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">
+                Le password non coincidono.
+              </div>
+            )}
+            {error && (
+              <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">{error}</div>
+            )}
 
             <button
               disabled={busy || password.length < 6 || mismatch}
-              className="w-full px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold"
+              className="mp-btn-primary w-full disabled:opacity-50"
             >
               {busy ? 'Salvo...' : 'Salva nuova password'}
             </button>
@@ -149,6 +162,6 @@ export default function ResetPasswordPage() {
           </form>
         )}
       </div>
-    </div>
+    </AppShell>
   );
 }

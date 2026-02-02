@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import AppShell from '../components/AppShell';
 
 export default function SignupPage() {
   const nav = useNavigate();
@@ -44,20 +45,24 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950 text-slate-100">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-md p-6 rounded-2xl border border-slate-800 bg-slate-950"
-      >
-        <h1 className="text-2xl font-black">Signup</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Crea un account User o Seller (Supabase Auth).
-        </p>
+    <AppShell
+      compact
+      title="Crea account"
+      subtitle="Scegli User o Seller. Il portale ti guida con una dashboard iniziale e checklist operative."
+      right={
+        <>
+          <Link className="mp-btn-secondary" to="/">Home</Link>
+          <Link className="mp-btn-secondary" to="/login">Login</Link>
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} className="mp-card p-6 md:p-7 max-w-md mx-auto">
+        <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">✨ Signup</div>
 
         <div className="mt-4">
           <label className="text-xs text-slate-400">Ruolo</label>
           <select
-            className="w-full mt-1 px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            className="mp-input mt-1"
             value={role}
             onChange={(e) => setRole(e.target.value as any)}
           >
@@ -68,7 +73,7 @@ export default function SignupPage() {
 
         <div className="mt-4 space-y-3">
           <input
-            className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            className="mp-input"
             placeholder="Email"
             autoComplete="username"
             value={email}
@@ -76,7 +81,7 @@ export default function SignupPage() {
           />
 
           <input
-            className="w-full px-3 py-2 rounded bg-slate-900 border border-slate-800"
+            className="mp-input"
             placeholder="Password (min 6)"
             type="password"
             autoComplete="new-password"
@@ -84,24 +89,29 @@ export default function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          {info && <div className="text-sm text-emerald-300">{info}</div>}
-          {error && <div className="text-sm text-red-300">{error}</div>}
+          {info && (
+            <div className="text-sm rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-100 p-3">
+              {info}
+            </div>
+          )}
+          {error && (
+            <div className="text-sm rounded-xl border border-red-500/30 bg-red-500/10 text-red-100 p-3">
+              {error}
+            </div>
+          )}
 
-          <button
-            disabled={busy}
-            className="w-full px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 font-semibold"
-          >
+          <button disabled={busy} className="mp-btn-primary w-full">
             {busy ? 'Creo account...' : 'Crea account'}
           </button>
         </div>
 
-        <div className="mt-4 text-sm text-slate-400">
+        <div className="mt-4 text-sm text-slate-300">
           Hai già un account?{' '}
-          <Link className="text-indigo-300 hover:text-indigo-200" to="/login">
-            Vai al Login
+          <Link className="text-modena-cyan hover:brightness-110" to="/login">
+            Vai al login
           </Link>
         </div>
       </form>
-    </div>
+    </AppShell>
   );
 }
