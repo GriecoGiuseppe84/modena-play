@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import Joi from 'joi';
-import { supabaseAnon } from '../lib/supabase';
+import bcrypt from 'bcryptjs';
+import { pool } from '../database/pg';
+import { signJwt } from '../lib/jwt';
 import { requireAuth } from '../middleware/requireAuth';
 
 const router = Router();
@@ -33,29 +35,46 @@ router.post('/register', async (req, res) => {
 
   const { email, password, role } = value;
 
-  const { data, error: supaErr } = await supabaseAnon.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { role },
-    },
-  });
+  // local DB user
+  const emailNorm = email.trim().toLowerCase();
+  const passwordHash = await bcrypt.hash(password, 10);
 
-  if (supaErr) return res.status(400).json({ error: supaErr.message });
+  try {
+    // ensure table exists (wizard also does this, but keep it robust)
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        email text NOT NULL UNIQUE,
+        password_hash text NOT NULL,
+        role text NOT NULL DEFAULT 'user',
+        is_active boolean NOT NULL DEFAULT true,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );
+    `);
 
-  // se Supabase richiede conferma email, session può essere null
-  const token = data.session?.access_token ?? null;
+    const ins = await pool.query(
+      `INSERT INTO app_users (email, password_hash, role)
+       VALUES ($1,$2,$3)
+       RETURNING id, email, role`,
+      [emailNorm, passwordHash, role]
+    );
 
-  return res.json({
-    ok: true,
-    user: {
-      id: data.user?.id ?? null,
-      email: data.user?.email ?? email,
-      role,
-    },
-    token, // può essere null se email confirmation ON
-    needsEmailConfirmation: token === null,
-  });
+    const u = ins.rows?.[0];
+    const token = signJwt({ sub: u.id, role: (u.role === 'seller' ? 'seller' : 'user') as any, email: u.email }, '7d');
+    return res.json({
+      ok: true,
+      user: { id: u.id, email: u.email, role: u.role === 'seller' ? 'seller' : 'user' },
+      token,
+      needsEmailConfirmation: false,
+    });
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    if (msg.toLowerCase().includes('duplicate') || msg.toLowerCase().includes('unique')) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+    return res.status(500).json({ error: msg });
+  }
 });
 
 router.post('/login', async (req, res) => {
@@ -69,22 +88,37 @@ router.post('/login', async (req, res) => {
 
   const { email, password } = value;
 
-  const { data, error: supaErr } = await supabaseAnon.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const emailNorm = email.trim().toLowerCase();
+  try {
+    const r = await pool.query(
+      `SELECT id, email, role, password_hash, is_active
+       FROM app_users
+       WHERE email = $1
+       LIMIT 1`,
+      [emailNorm]
+    );
 
-  if (supaErr) return res.status(401).json({ error: supaErr.message });
+    const u = r.rows?.[0];
+    if (!u || !u.is_active) return res.status(401).json({ error: 'Invalid credentials' });
+    const ok = await bcrypt.compare(password, u.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
 
-  return res.json({
-    ok: true,
-    user: {
-      id: data.user.id,
-      email: data.user.email,
-      role: (data.user.user_metadata as any)?.role ?? 'user',
-    },
-    token: data.session.access_token, // ✅ questo è il Bearer che userai dal client
-  });
+    const roleOut = u.role === 'seller' ? 'seller' : 'user';
+    const token = signJwt({ sub: u.id, role: roleOut as any, email: u.email }, '7d');
+
+    return res.json({
+      ok: true,
+      user: { id: u.id, email: u.email, role: roleOut },
+      token,
+    });
+  } catch (e: any) {
+    const msg = String(e?.message || e);
+    // likely missing table (setup not run yet)
+    if (msg.toLowerCase().includes('app_users')) {
+      return res.status(503).json({ error: 'DB not initialized yet. Run Admin → Setup Wizard → Step 2 (Create tables).' });
+    }
+    return res.status(500).json({ error: msg });
+  }
 });
 
 // ✅ Recupero password (solo email/password).
@@ -94,20 +128,14 @@ router.post('/forgot-password', async (req, res) => {
   const { error, value } = schema.validate(req.body);
   if (error) return res.status(400).json({ error: error.message });
 
+  // Local auth MVP does not implement email reset yet.
+  // (We can add SMTP-based reset flow later.)
   const redirectTo = computeRedirectTo(req);
-  if (!redirectTo) {
-    return res.status(500).json({
-      error:
-        'Missing WEB_URL (or request Origin). Set WEB_URL env on the API service, e.g. https://modenaplay-web.onrender.com',
-    });
-  }
-
-  const { error: supaErr } = await supabaseAnon.auth.resetPasswordForEmail(value.email, {
-    redirectTo,
+  return res.status(501).json({
+    error:
+      'Password reset not configured in local-auth mode. Contact admin or enable an email reset flow.\n' +
+      (redirectTo ? `Suggested frontend route: ${redirectTo}` : 'Set WEB_URL to enable proper links.'),
   });
-
-  if (supaErr) return res.status(400).json({ error: supaErr.message });
-  return res.json({ ok: true });
 });
 
 router.get('/me', requireAuth, async (req, res) => {

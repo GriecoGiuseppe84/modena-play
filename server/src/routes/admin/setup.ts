@@ -45,7 +45,23 @@ async function ensureBaseSchema() {
     ON CONFLICT (id) DO NOTHING;
   `);
 
-  // ✅ Affiliate links (schema in linea con supabase/schema.sql)
+  // ---------------------------------------------
+  // Local users (email/password) — for MVP auth
+  // ---------------------------------------------
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS app_users (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      email text NOT NULL UNIQUE,
+      password_hash text NOT NULL,
+      role text NOT NULL DEFAULT 'user',
+      is_active boolean NOT NULL DEFAULT true,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+
+  // ---------------------------------------------
+  // Affiliate links (MVP)
+  // ---------------------------------------------
   await pool.query(`
     CREATE TABLE IF NOT EXISTS affiliate_links (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -62,8 +78,22 @@ async function ensureBaseSchema() {
     );
   `);
 
-  await pool.query(`create index if not exists idx_affiliate_links_active on affiliate_links (is_active);`);
-  await pool.query(`create index if not exists idx_affiliate_links_network on affiliate_links (network);`);
+  // idempotent upgrades
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS tags text[] NOT NULL DEFAULT '{}'::text[];`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS destination_base_url text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS utm_source text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS utm_medium text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS utm_campaign text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS utm_content text NOT NULL DEFAULT '';`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS utm_term text NOT NULL DEFAULT '';`);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_links_active on affiliate_links (is_active);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_links_network on affiliate_links (network);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_links_category on affiliate_links (category);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_links_click_count on affiliate_links (click_count DESC);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_links_tags_gin on affiliate_links USING GIN (tags);`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS affiliate_clicks (
@@ -109,6 +139,71 @@ async function ensureBaseSchema() {
     SELECT date_trunc('day', clicked_at) as day, count(*) as clicks
     FROM affiliate_clicks
     GROUP BY 1;
+  `);
+
+  // ---------------------------------------------
+  // Content: articles (draft/published)
+  // ---------------------------------------------
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content_articles (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      author_user_id uuid NULL,
+      title text NOT NULL,
+      slug text NOT NULL,
+      status text NOT NULL DEFAULT 'draft',
+      excerpt text NOT NULL DEFAULT '',
+      body_md text NOT NULL DEFAULT '',
+      tags text[] NOT NULL DEFAULT '{}'::text[],
+      published_at timestamptz NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (slug)
+    );
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_articles_status on content_articles (status);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_articles_published_at on content_articles (published_at DESC);`);
+
+  // updated_at helper
+  await pool.query(`
+    CREATE OR REPLACE FUNCTION public.set_updated_at()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      NEW.updated_at = now();
+      RETURN NEW;
+    END;
+    $$;
+  `);
+
+  // triggers (idempotent)
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_system_config_updated_at') THEN
+        CREATE TRIGGER trg_system_config_updated_at
+        BEFORE UPDATE ON system_config
+        FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_affiliate_links_updated_at') THEN
+        CREATE TRIGGER trg_affiliate_links_updated_at
+        BEFORE UPDATE ON affiliate_links
+        FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_content_articles_updated_at') THEN
+        CREATE TRIGGER trg_content_articles_updated_at
+        BEFORE UPDATE ON content_articles
+        FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+      END IF;
+    END $$;
+  `);
+
+  // daily per link
+  await pool.query(`
+    CREATE OR REPLACE VIEW public.affiliate_clicks_daily AS
+    SELECT link_id, date_trunc('day', clicked_at) as day, count(*) as clicks
+    FROM affiliate_clicks
+    GROUP BY 1,2;
   `);
 }
 

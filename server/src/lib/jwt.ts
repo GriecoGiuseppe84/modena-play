@@ -2,7 +2,7 @@ import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 
 export type JwtPayload = {
   sub: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'user' | 'seller';
   email?: string;
 };
 

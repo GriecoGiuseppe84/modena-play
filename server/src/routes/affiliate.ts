@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Joi from 'joi';
+import { pool } from '../database/pg';
 import { requireAuth } from '../middleware/requireAuth';
-import { supabaseService } from '../lib/supabase';
 import { anonymizeIp, sha256 } from '../utils/crypto';
 
 export const affiliateRouter = Router();
@@ -13,17 +13,6 @@ export const affiliateRouter = Router();
 function adminOnly(req: any, res: any, next: any) {
   if (req.authUser?.kind !== 'admin') return res.status(403).json({ error: 'Admin only' });
   return next();
-}
-
-function requireService(res: any) {
-  if (!supabaseService) {
-    res.status(500).json({
-      error:
-        'Affiliate module requires SUPABASE_SERVICE_ROLE_KEY on the API service (Render). It is used server-side to bypass RLS safely.',
-    });
-    return null;
-  }
-  return supabaseService;
 }
 
 function slugify(input: string): string {
@@ -48,18 +37,16 @@ function randSuffix(len = 4) {
   return out;
 }
 
-async function ensureUniqueSlug(service: any, base: string, excludeId?: string): Promise<string> {
+async function ensureUniqueSlug(base: string, excludeId?: string): Promise<string> {
   const cleanBase = slugify(base);
   let candidate = cleanBase;
 
   for (let i = 0; i < 10; i++) {
-    let q = service.from('affiliate_links').select('id').eq('slug', candidate);
-    if (excludeId) q = q.neq('id', excludeId);
-
-    const { data, error } = await q.maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!data) return candidate;
-
+    const r = await pool.query(
+      `SELECT id FROM affiliate_links WHERE slug = $1 ${excludeId ? 'AND id <> $2' : ''} LIMIT 1`,
+      excludeId ? [candidate, excludeId] : [candidate]
+    );
+    if (!r.rows?.[0]) return candidate;
     candidate = `${cleanBase}-${randSuffix(4)}`.slice(0, 56);
   }
 
@@ -81,7 +68,6 @@ function normalizeTags(v: any): string[] {
     .map((x: any) => String(x ?? '').trim())
     .filter(Boolean)
     .map((x: string) => x.slice(0, 32).toLowerCase());
-  // uniq
   return Array.from(new Set(out)).slice(0, 12);
 }
 
@@ -118,19 +104,14 @@ function pickUtm(value: any) {
 // ------------------------------------------------------------
 
 affiliateRouter.get('/resolve/:slug', async (req, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
   const slug = String(req.params.slug ?? '').trim().toLowerCase();
   if (!slug) return res.status(400).json({ error: 'Missing slug' });
 
-  const { data: link, error } = await service
-    .from('affiliate_links')
-    .select('id, slug, is_active, destination_url')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (error) return res.status(500).json({ error: error.message });
+  const r = await pool.query(
+    `SELECT id, slug, is_active, destination_url FROM affiliate_links WHERE slug = $1 LIMIT 1`,
+    [slug]
+  );
+  const link = r.rows?.[0];
   if (!link || !link.is_active) return res.status(404).json({ error: 'Not found' });
 
   const dest = String(link.destination_url ?? '').trim();
@@ -142,17 +123,14 @@ affiliateRouter.get('/resolve/:slug', async (req, res) => {
   const ref = String(req.headers.referer ?? '') || null;
   const ua = String(req.headers['user-agent'] ?? '') || null;
   const ipHash = safeIpHash(req);
-
-  try {
-    await service.from('affiliate_clicks').insert({
-      link_id: link.id,
-      referrer: ref,
-      user_agent: ua,
-      ip_hash: ipHash,
+  pool
+    .query(
+      `INSERT INTO affiliate_clicks (link_id, referrer, user_agent, ip_hash) VALUES ($1,$2,$3,$4)`,
+      [link.id, ref, ua, ipHash]
+    )
+    .catch(() => {
+      /* never block redirect */
     });
-  } catch {
-    // never block redirect
-  }
 
   const wantsRedirect = String(req.query?.redirect ?? '') === '1';
   if (wantsRedirect) return res.redirect(302, dest);
@@ -160,14 +138,11 @@ affiliateRouter.get('/resolve/:slug', async (req, res) => {
 });
 
 // ------------------------------------------------------------
-// Public: resources list (for /risorse landing)
+// Public: resources list
 // GET /api/affiliate/public/links?sort=top|new&category=&tag=&network=&q=&limit=
 // ------------------------------------------------------------
 
 affiliateRouter.get('/public/links', async (req, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
   const q = String(req.query?.q ?? '').trim();
   const category = String(req.query?.category ?? '').trim();
   const tag = String(req.query?.tag ?? '').trim().toLowerCase();
@@ -175,53 +150,52 @@ affiliateRouter.get('/public/links', async (req, res) => {
   const sort = String(req.query?.sort ?? 'top').trim();
   const limit = Math.min(60, Math.max(6, Number(req.query?.limit ?? 24)));
 
-  let query = service
-    .from('affiliate_links')
-    .select('id, title, slug, network, category, tags, description, click_count, created_at')
-    .eq('is_active', true)
-    .limit(limit);
+  const where: string[] = ['is_active = true'];
+  const params: any[] = [];
+  const p = (v: any) => {
+    params.push(v);
+    return `$${params.length}`;
+  };
 
   if (q) {
-    const safe = q.replace(/%/g, '');
-    query = query.or(`title.ilike.%${safe}%,description.ilike.%${safe}%`);
+    const safe = `%${q.replace(/%/g, '')}%`;
+    where.push(`(title ILIKE ${p(safe)} OR description ILIKE ${p(safe)})`);
   }
-  if (category) query = query.eq('category', category);
-  if (network) query = query.eq('network', network);
-  if (tag) query = query.contains('tags', [tag]);
+  if (category) where.push(`category = ${p(category)}`);
+  if (network) where.push(`network = ${p(network)}`);
+  if (tag) where.push(`${p(tag)} = ANY(tags)`);
 
-  if (sort === 'new') query = query.order('created_at', { ascending: false });
-  else query = query.order('click_count', { ascending: false }).order('created_at', { ascending: false });
+  const orderBy = sort === 'new' ? 'created_at DESC' : 'click_count DESC, created_at DESC';
 
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  return res.json({ items: data ?? [] });
+  const sql = `
+    SELECT id, title, slug, network, category, tags, description, click_count, created_at
+    FROM affiliate_links
+    WHERE ${where.join(' AND ')}
+    ORDER BY ${orderBy}
+    LIMIT ${p(limit)}
+  `;
+
+  const r = await pool.query(sql, params);
+  return res.json({ items: r.rows ?? [] });
 });
 
 // Public meta (categories/tags/networks)
 affiliateRouter.get('/public/meta', async (_req, res) => {
-  const service = requireService(res);
-  if (!service) return;
+  const r = await pool.query(
+    `SELECT category, tags, network FROM affiliate_links WHERE is_active = true ORDER BY created_at DESC LIMIT 1500`
+  );
 
-  // best-effort: small sample is enough for UI meta
-  const { data, error } = await service
-    .from('affiliate_links')
-    .select('category, tags, network, is_active')
-    .eq('is_active', true)
-    .limit(1500);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  const rows = data ?? [];
+  const rows = r.rows ?? [];
   const categories = new Map<string, number>();
   const networks = new Map<string, number>();
   const tags = new Map<string, number>();
 
-  for (const r of rows as any[]) {
-    const c = String(r.category ?? '').trim();
+  for (const rr of rows as any[]) {
+    const c = String(rr.category ?? '').trim();
     if (c) categories.set(c, (categories.get(c) ?? 0) + 1);
-    const n = String(r.network ?? '').trim();
+    const n = String(rr.network ?? '').trim();
     if (n) networks.set(n, (networks.get(n) ?? 0) + 1);
-    const tArr = Array.isArray(r.tags) ? r.tags : [];
+    const tArr = Array.isArray(rr.tags) ? rr.tags : [];
     for (const t of tArr) {
       const tt = String(t ?? '').trim().toLowerCase();
       if (tt) tags.set(tt, (tags.get(tt) ?? 0) + 1);
@@ -246,11 +220,8 @@ affiliateRouter.get('/public/meta', async (_req, res) => {
 
 affiliateRouter.use(requireAuth);
 
-// List links (filters: q, active, category, tag, network, sort)
+// List links
 affiliateRouter.get('/links', adminOnly, async (req: any, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
   const q = String(req.query?.q ?? '').trim();
   const active = String(req.query?.active ?? '').trim();
   const category = String(req.query?.category ?? '').trim();
@@ -259,42 +230,48 @@ affiliateRouter.get('/links', adminOnly, async (req: any, res) => {
   const sort = String(req.query?.sort ?? 'new').trim();
   const limit = Math.min(500, Math.max(10, Number(req.query?.limit ?? 200)));
 
-  let query = service
-    .from('affiliate_links')
-    .select(
-      'id, title, slug, network, category, tags, description, source_url, destination_url, destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_active, click_count, created_at, updated_at',
-    )
-    .limit(limit);
-
-  if (sort === 'top') query = query.order('click_count', { ascending: false }).order('created_at', { ascending: false });
-  else query = query.order('created_at', { ascending: false });
+  const where: string[] = [];
+  const params: any[] = [];
+  const p = (v: any) => {
+    params.push(v);
+    return `$${params.length}`;
+  };
 
   if (q) {
-    const safe = q.replace(/%/g, '');
-    query = query.or(`title.ilike.%${safe}%,slug.ilike.%${safe}%,description.ilike.%${safe}%,destination_url.ilike.%${safe}%`);
+    const safe = `%${q.replace(/%/g, '')}%`;
+    where.push(
+      `(title ILIKE ${p(safe)} OR slug ILIKE ${p(safe)} OR description ILIKE ${p(safe)} OR destination_url ILIKE ${p(safe)})`
+    );
   }
-  if (active === '1') query = query.eq('is_active', true);
-  if (active === '0') query = query.eq('is_active', false);
-  if (category) query = query.eq('category', category);
-  if (network) query = query.eq('network', network);
-  if (tag) query = query.contains('tags', [tag]);
+  if (active === '1') where.push(`is_active = true`);
+  if (active === '0') where.push(`is_active = false`);
+  if (category) where.push(`category = ${p(category)}`);
+  if (network) where.push(`network = ${p(network)}`);
+  if (tag) where.push(`${p(tag)} = ANY(tags)`);
 
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  return res.json({ items: data ?? [] });
+  const orderBy = sort === 'top' ? 'click_count DESC, created_at DESC' : 'created_at DESC';
+
+  const sql = `
+    SELECT id, title, slug, network, category, tags, description, source_url, destination_url,
+           destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+           is_active, click_count, created_at, updated_at
+    FROM affiliate_links
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY ${orderBy}
+    LIMIT ${p(limit)}
+  `;
+
+  const r = await pool.query(sql, params);
+  return res.json({ items: r.rows ?? [] });
 });
 
-// Create link (slug auto + UTM builder)
+// Create link
 affiliateRouter.post('/links', adminOnly, async (req: any, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
   const schema = Joi.object({
     title: Joi.string().min(2).max(120).required(),
     description: Joi.string().allow('').max(360).optional(),
     category: Joi.string().allow('').max(40).optional(),
     tags: Joi.array().items(Joi.string().max(32)).optional(),
-    // UTM builder
     destination_base_url: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
     utm_source: Joi.string().allow('').max(80).optional(),
     utm_medium: Joi.string().allow('').max(80).optional(),
@@ -311,7 +288,7 @@ affiliateRouter.post('/links', adminOnly, async (req: any, res) => {
   if (error) return res.status(400).json({ error: error.message });
 
   const desiredSlug = String(value.slug ?? '').trim();
-  const slug = desiredSlug ? await ensureUniqueSlug(service, desiredSlug) : await ensureUniqueSlug(service, value.title);
+  const slug = desiredSlug ? await ensureUniqueSlug(desiredSlug) : await ensureUniqueSlug(value.title);
 
   const baseUrl = String(value.destination_base_url ?? '').trim();
   const utm = pickUtm(value);
@@ -336,23 +313,41 @@ affiliateRouter.post('/links', adminOnly, async (req: any, res) => {
     destination_url,
   };
 
-  const { data, error: insErr } = await service
-    .from('affiliate_links')
-    .insert(payload)
-    .select(
-      'id, title, slug, network, category, tags, description, source_url, destination_url, destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_active, click_count, created_at, updated_at',
-    )
-    .maybeSingle();
+  const r = await pool.query(
+    `
+      INSERT INTO affiliate_links (
+        title, description, category, tags, network, slug, is_active, source_url,
+        destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term, destination_url
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      RETURNING id, title, slug, network, category, tags, description, source_url, destination_url,
+                destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+                is_active, click_count, created_at, updated_at
+    `,
+    [
+      payload.title,
+      payload.description,
+      payload.category,
+      payload.tags,
+      payload.network,
+      payload.slug,
+      payload.is_active,
+      payload.source_url,
+      payload.destination_base_url,
+      payload.utm_source,
+      payload.utm_medium,
+      payload.utm_campaign,
+      payload.utm_content,
+      payload.utm_term,
+      payload.destination_url,
+    ]
+  );
 
-  if (insErr) return res.status(500).json({ error: insErr.message });
-  return res.json({ ok: true, item: data });
+  return res.json({ ok: true, item: r.rows?.[0] ?? null });
 });
 
-// Update link (supports UTM rebuild)
+// Update link
 affiliateRouter.patch('/links/:id', adminOnly, async (req: any, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
   const schema = Joi.object({
     title: Joi.string().min(2).max(120).optional(),
     description: Joi.string().allow('').max(360).optional(),
@@ -364,7 +359,7 @@ affiliateRouter.patch('/links/:id', adminOnly, async (req: any, res) => {
     utm_campaign: Joi.string().allow('').max(120).optional(),
     utm_content: Joi.string().allow('').max(120).optional(),
     utm_term: Joi.string().allow('').max(120).optional(),
-    destination_url: Joi.string().allow('').uri({ scheme: ['http', 'https'] }).optional(), // fallback/manual
+    destination_url: Joi.string().allow('').uri({ scheme: ['http', 'https'] }).optional(),
     source_url: Joi.string().allow('').optional(),
     network: Joi.string().max(32).optional(),
     slug: Joi.string().allow('').optional(),
@@ -377,17 +372,17 @@ affiliateRouter.patch('/links/:id', adminOnly, async (req: any, res) => {
   const id = String(req.params.id ?? '').trim();
   if (!id) return res.status(400).json({ error: 'Missing id' });
 
-  // Normalize tags if provided
+  // normalize tags
   if (value.tags !== undefined) value.tags = normalizeTags(value.tags);
 
-  // If slug changed, keep it unique
+  // slug uniqueness
   if (value.slug !== undefined) {
     const desired = String(value.slug ?? '').trim();
     if (!desired) {
       const base = String(value.title ?? 'link');
-      value.slug = await ensureUniqueSlug(service, base, id);
+      value.slug = await ensureUniqueSlug(base, id);
     } else {
-      value.slug = await ensureUniqueSlug(service, desired, id);
+      value.slug = await ensureUniqueSlug(desired, id);
     }
   }
 
@@ -400,13 +395,11 @@ affiliateRouter.patch('/links/:id', adminOnly, async (req: any, res) => {
     value.utm_term !== undefined;
 
   if (needsUtmRebuild) {
-    const { data: current, error: curErr } = await service
-      .from('affiliate_links')
-      .select('destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (curErr) return res.status(500).json({ error: curErr.message });
+    const cur = await pool.query(
+      `SELECT destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term FROM affiliate_links WHERE id=$1`,
+      [id]
+    );
+    const current = cur.rows?.[0];
     if (!current) return res.status(404).json({ error: 'Not found' });
 
     const baseUrl = String((value.destination_base_url ?? current.destination_base_url ?? '') || '').trim();
@@ -431,79 +424,92 @@ affiliateRouter.patch('/links/:id', adminOnly, async (req: any, res) => {
     if (!url) return res.status(400).json({ error: 'destination_url cannot be empty' });
   }
 
-  const { data, error: upErr } = await service
-    .from('affiliate_links')
-    .update(value)
-    .eq('id', id)
-    .select(
-      'id, title, slug, network, category, tags, description, source_url, destination_url, destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_active, click_count, created_at, updated_at',
-    )
-    .maybeSingle();
+  // dynamic UPDATE
+  const sets: string[] = [];
+  const params: any[] = [id];
+  const p = (v: any) => {
+    params.push(v);
+    return `$${params.length}`;
+  };
 
-  if (upErr) return res.status(500).json({ error: upErr.message });
-  return res.json({ ok: true, item: data });
+  const map: Record<string, any> = {
+    title: value.title,
+    description: value.description,
+    category: value.category,
+    tags: value.tags,
+    destination_base_url: value.destination_base_url,
+    utm_source: value.utm_source,
+    utm_medium: value.utm_medium,
+    utm_campaign: value.utm_campaign,
+    utm_content: value.utm_content,
+    utm_term: value.utm_term,
+    destination_url: value.destination_url,
+    source_url: value.source_url,
+    network: value.network,
+    slug: value.slug,
+    is_active: value.is_active,
+  };
+
+  for (const [k, v] of Object.entries(map)) {
+    if (v === undefined) continue;
+    sets.push(`${k} = ${p(v)}`);
+  }
+
+  if (!sets.length) return res.status(400).json({ error: 'No valid fields to update' });
+
+  const r = await pool.query(
+    `
+      UPDATE affiliate_links
+      SET ${sets.join(', ')}, updated_at = now()
+      WHERE id = $1
+      RETURNING id, title, slug, network, category, tags, description, source_url, destination_url,
+                destination_base_url, utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+                is_active, click_count, created_at, updated_at
+    `,
+    params
+  );
+
+  const item = r.rows?.[0];
+  if (!item) return res.status(404).json({ error: 'Not found' });
+  return res.json({ ok: true, item });
 });
 
-// ------------------------------------------------------------
-// Analytics
-// ------------------------------------------------------------
-
-// Summary (used in admin dashboard & affiliate page)
+// Summary
 affiliateRouter.get('/analytics/summary', adminOnly, async (_req: any, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
-  const { data: links, error } = await service
-    .from('affiliate_links')
-    .select('id, title, slug, click_count, is_active')
-    .limit(2000);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  const list = links ?? [];
+  const links = await pool.query(`SELECT id, title, slug, click_count, is_active FROM affiliate_links LIMIT 2000`);
+  const list = links.rows ?? [];
   const totalLinks = list.length;
   const activeLinks = list.filter((l: any) => l.is_active).length;
   const totalClicks = list.reduce((a: number, l: any) => a + Number(l.click_count ?? 0), 0);
 
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const { count: last7DaysClicks, error: cErr } = await service
-    .from('affiliate_clicks')
-    .select('id', { count: 'exact', head: true })
-    .gte('clicked_at', since);
-
-  if (cErr) return res.status(500).json({ error: cErr.message });
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const last7 = await pool.query(`SELECT count(*)::int as c FROM affiliate_clicks WHERE clicked_at >= $1`, [since.toISOString()]);
+  const last7DaysClicks = Number(last7.rows?.[0]?.c ?? 0);
 
   const topLinks = [...list]
     .sort((a: any, b: any) => Number(b.click_count ?? 0) - Number(a.click_count ?? 0))
     .slice(0, 5)
     .map((l: any) => ({ id: l.id, title: l.title, slug: l.slug, click_count: Number(l.click_count ?? 0) }));
 
-  return res.json({
-    totalLinks,
-    activeLinks,
-    totalClicks,
-    last7DaysClicks: Number(last7DaysClicks ?? 0),
-    topLinks,
-  });
+  return res.json({ totalLinks, activeLinks, totalClicks, last7DaysClicks, topLinks });
 });
 
-// Daily clicks (total)
+// Daily clicks total
 affiliateRouter.get('/analytics/daily', adminOnly, async (req: any, res) => {
-  const service = requireService(res);
-  if (!service) return;
-
   const days = Math.min(30, Math.max(3, Number(req.query?.days ?? 14)));
 
-  const { data, error } = await service
-    .from('affiliate_clicks_daily_total')
-    .select('day, clicks')
-    .order('day', { ascending: false })
-    .limit(days);
+  const r = await pool.query(
+    `
+      SELECT day, clicks
+      FROM affiliate_clicks_daily_total
+      ORDER BY day DESC
+      LIMIT $1
+    `,
+    [days]
+  );
 
-  if (error) return res.status(500).json({ error: error.message });
-
-  const items = (data ?? [])
-    .map((r: any) => ({ day: r.day, clicks: Number(r.clicks ?? 0) }))
+  const items = (r.rows ?? [])
+    .map((rr: any) => ({ day: rr.day, clicks: Number(rr.clicks ?? 0) }))
     .reverse();
 
   return res.json({ days, items });

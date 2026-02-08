@@ -9,7 +9,6 @@ import { errorHandler } from './middleware/errorHandler';
 import { rateLimit } from './middleware/rateLimit';
 
 import authRoutes from './routes/auth';
-import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import { affiliateRouter } from './routes/affiliate';
 import { analyticsRouter } from './routes/analytics';
@@ -41,7 +40,6 @@ export function createApp() {
   app.use('/api/health', healthRoutes);
 
   app.use('/api/auth', authRoutes);
-  app.use('/api/public', publicRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/affiliate', affiliateRouter);
   app.use('/api/analytics', analyticsRouter);
