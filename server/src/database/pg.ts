@@ -42,7 +42,7 @@ export function safeDbInfo(): DbHint {
 
   if (!raw) {
     hints.push('DATABASE_URL mancante su Render (service "modenaplay-api").');
-    hints.push('Deve essere una URI Postgres (postgresql://...), NON un URL HTTP.');
+    hints.push('Deve essere una URI Postgres (postgresql://...), NON https://<project>.supabase.co');
     return {
       present: false,
       configured: false,
@@ -58,7 +58,9 @@ export function safeDbInfo(): DbHint {
     hints.push('DATABASE_URL sembra un URL HTTP. Deve iniziare con postgresql:// o postgres://');
   }
   if (!isDatabaseConfigured()) {
-    hints.push('Formato atteso: postgresql://<user>:<password>@<host>:5432/<db>?sslmode=require');
+    hints.push(
+      'Formato atteso: postgresql://postgres:<PWD>@db.<project-ref>.supabase.co:5432/postgres?sslmode=require'
+    );
   }
 
   const host = safeHostFromUrl(raw);

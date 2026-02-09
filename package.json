@@ -1,15 +1,13 @@
 {
   "name": "modenaplay-monorepo",
   "private": true,
-  "workspaces": [
-    "client",
-    "server"
-  ],
   "scripts": {
     "dev": "npm -w client run dev & npm -w server run dev",
     "build": "npm -w client run build && npm -w server run build",
     "start": "npm -w server run start",
     "lint": "npm -w client run lint && npm -w server run lint",
     "typecheck": "npm -w client run typecheck && npm -w server run typecheck"
-  }
+  },
+  "version": "1.0.0",
+  "description": "Root stub to prevent Render auto-install workspace deps"
 }

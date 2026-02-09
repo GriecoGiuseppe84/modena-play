@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { getSupabaseAdmin } from '../database/supabase';
 import { pool, isDatabaseConfigured, databaseConfigHint } from '../database/pg';
 
 export async function healthHandler(_req: Request, res: Response) {
@@ -30,10 +31,25 @@ export async function healthHandler(_req: Request, res: Response) {
       completed = Boolean(st.rows?.[0]?.completed);
     }
 
+    // 2) Supabase admin: best-effort (non deve rompere health se manca)
+    let supabase: 'ok' | 'missing' | 'error' = 'missing';
+    let supabaseError: string | undefined;
+    try {
+      const client = getSupabaseAdmin();
+      const { error } = await client.from('profiles').select('id').limit(1);
+      supabase = error ? 'error' : 'ok';
+      supabaseError = error ? error.message : undefined;
+    } catch (e: any) {
+      supabase = 'missing';
+      supabaseError = String(e?.message || e);
+    }
+
     return res.json({
       status: 'ok',
       database: 'connected',
       setup: { table: hasSetupTable ? 'present' : 'missing', completed },
+      supabase,
+      supabaseError,
       tookMs: Date.now() - start,
       timestamp,
     });

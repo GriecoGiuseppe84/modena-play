@@ -10,5 +10,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Print migration file path
         run: |
-          echo "Apply this SQL in Neon SQL editor:"
-          echo "server/sql/neon_bootstrap.sql"
+          echo "Apply this SQL in Supabase SQL editor:"
+          echo "server/src/database/migrations/001_init_schema.sql"
