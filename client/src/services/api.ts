@@ -23,5 +23,18 @@ export function setToken(token: string | null) {
   else delete api.defaults.headers.common['Authorization'];
 }
 
+
+// ✅ Safety net: attach token to every request (avoids missing Authorization after refresh/race conditions)
+api.interceptors.request.use((config) => {
+  const tok = getToken();
+  if (tok) {
+    config.headers = config.headers ?? {};
+    (config.headers as any)['Authorization'] = `Bearer ${tok}`;
+  } else if (config.headers) {
+    delete (config.headers as any)['Authorization'];
+  }
+  return config;
+});
+
 // ✅ persist login after refresh
 setToken(getToken());
