@@ -128,7 +128,7 @@ affiliateRouter.get('/public/links', async (req, res) => {
            b.name as brand_name
     FROM affiliate_links l
     LEFT JOIN affiliate_brands b ON b.id = l.brand_id
-    WHERE ${' AND '.join(where)}
+    WHERE ${where.join(' AND ')}
     ORDER BY l.updated_at DESC
     LIMIT ${limit}
   `;
