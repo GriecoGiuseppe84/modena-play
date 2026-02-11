@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { useAnalytics } from '../../hooks/useAnalytics';
-import { api } from '../../services/api';
 
 function toISO(d: Date) {
   return d.toISOString();
@@ -11,17 +10,17 @@ export default function AnalyticsPanel() {
   const [to, setTo] = useState(() => toISO(new Date()));
 
   const q = useAnalytics(from, to);
-
   const summary = q.data;
 
   const csv = useMemo(() => {
-    const rows = [
+    const rows: string[][] = [
       ['metric', 'value'],
       ['clicks', String(summary?.clicks ?? 0)],
-      ['conversions', String(summary?.conversions ?? 0)],
       ['revenue', String(summary?.revenue ?? 0)],
-      ['commission', String(summary?.commission ?? 0)],
       ['conversionRate', String(summary?.conversionRate ?? 0)],
+      ['totalLinks', String(summary?.totalLinks ?? 0)],
+      ['activeLinks', String(summary?.activeLinks ?? 0)],
+      ['totalClicks', String(summary?.totalClicks ?? 0)],
     ];
     return rows.map((r) => r.join(',')).join('\n');
   }, [summary]);
@@ -46,19 +45,55 @@ export default function AnalyticsPanel() {
       </div>
 
       <div className="mt-5 grid md:grid-cols-4 gap-3">
-        <Card title="Clicks" value={summary?.clicks ?? 0} />
-        <Card title="Conversions" value={summary?.conversions ?? 0} />
-        <Card title="Revenue" value={summary?.revenue ?? 0} suffix="€" />
-        <Card title="Conv %" value={summary?.conversionRate ?? 0} suffix="%" />
+        <Card title="Clicks (range)" value={summary?.clicks ?? 0} />
+        <Card title="Revenue (range)" value={summary?.revenue ?? 0} suffix="€" />
+        <Card title="Links attivi" value={summary?.activeLinks ?? 0} />
+        <Card title="Clicks (lifetime)" value={summary?.totalClicks ?? 0} />
+      </div>
+
+      <div className="mt-6 grid lg:grid-cols-2 gap-4">
+        <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+          <div className="font-black">Top Links</div>
+          <div className="mt-3 grid gap-2">
+            {(summary?.topLinks ?? []).map((l) => (
+              <div key={l.id} className="flex items-center justify-between text-sm">
+                <div className="text-slate-300 truncate">{l.title} <span className="text-slate-500">/{l.slug}</span></div>
+                <div className="text-slate-200 font-black">{l.clicks}</div>
+              </div>
+            ))}
+            {(!summary?.topLinks || summary.topLinks.length === 0) ? <div className="text-slate-500 text-sm">Nessun dato.</div> : null}
+          </div>
+        </div>
+
+        
+<div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
+          <div className="font-black">Top Pagine (click + views + CTR)</div>
+          <div className="mt-3 grid gap-2">
+            {(summary?.topPages ?? []).map((p: any, idx: number) => (
+              <div key={idx} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center text-sm">
+                <div className="text-slate-300 truncate">{p.page}</div>
+                <div className="text-slate-200 font-black text-right">{p.clicks}</div>
+                <div className="text-slate-200 font-black text-right">{p.views ?? 0}</div>
+                <div className="text-modena-cyan font-black text-right">{p.ctr ?? 0}%</div>
+              </div>
+            ))}
+            {(!summary?.topPages || summary.topPages.length === 0) ? (
+              <div className="text-slate-500 text-sm">Nessun dato (serve traffico e tracking pageviews).</div>
+            ) : null}
+          </div>
+          <div className="mt-2 text-xs text-slate-500 grid grid-cols-[1fr_auto_auto_auto] gap-3">
+            <div />
+            <div className="text-right">click</div>
+            <div className="text-right">views</div>
+            <div className="text-right">CTR</div>
+          </div>
+        </div></div>
+        </div>
       </div>
 
       <div className="mt-6">
         <div className="text-sm font-semibold text-slate-300">Export CSV</div>
         <textarea className="mt-2 w-full h-40 rounded-xl bg-slate-950 border border-slate-700 p-3 font-mono text-xs" value={csv} readOnly />
-      </div>
-
-      <div className="mt-4 text-xs text-slate-500">
-        Nota: chart vero lo aggiungiamo nella V1.1 (qui MVP = pannello numerico + export).
       </div>
     </div>
   );
@@ -67,8 +102,10 @@ export default function AnalyticsPanel() {
 function Card({ title, value, suffix }: { title: string; value: any; suffix?: string }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950/30 p-4">
-      <div className="text-xs text-slate-400">{title}</div>
-      <div className="text-xl font-black mt-1">{value}{suffix ? <span className="text-slate-400 text-base font-bold ml-1">{suffix}</span> : null}</div>
+      <div className="text-sm text-slate-400">{title}</div>
+      <div className="text-2xl font-black mt-1">
+        {value}{suffix ? <span className="text-slate-400 text-lg font-bold ml-1">{suffix}</span> : null}
+      </div>
     </div>
   );
 }

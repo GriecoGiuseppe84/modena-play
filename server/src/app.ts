@@ -13,6 +13,8 @@ import publicRoutes from './routes/public';
 import adminRoutes from './routes/admin';
 import { affiliateRouter } from './routes/affiliate';
 import { analyticsRouter } from './routes/analytics';
+import { contentRouter } from './routes/content';
+import { userRouter } from './routes/user';
 import healthRoutes from './routes/health';
 
 const logger = pino({
@@ -45,6 +47,8 @@ export function createApp() {
   app.use('/api/admin', adminRoutes);
   app.use('/api/affiliate', affiliateRouter);
   app.use('/api/analytics', analyticsRouter);
+  app.use('/api/content', contentRouter);
+  app.use('/api/user', userRouter);
 
   app.use(errorHandler);
 

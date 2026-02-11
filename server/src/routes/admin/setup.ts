@@ -110,6 +110,109 @@ async function ensureBaseSchema() {
     FROM affiliate_clicks
     GROUP BY 1;
   `);
+  // ✅ Extra columns for Affiliate (non-destructive)
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS brand_id uuid NULL;`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS payout_type text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS payout_value numeric NULL;`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS tags text[] NOT NULL DEFAULT ARRAY[]::text[];`);
+  await pool.query(`ALTER TABLE affiliate_links ADD COLUMN IF NOT EXISTS notes text NULL;`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS affiliate_brands (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      name text NOT NULL,
+      slug text NOT NULL,
+      website_url text NULL,
+      network text NULL,
+      notes text NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (slug)
+    );
+  `);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_brands_name ON affiliate_brands (name);`);
+
+  // FK brand_id (safe add)
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_affiliate_links_brand'
+      ) THEN
+        ALTER TABLE affiliate_links
+          ADD CONSTRAINT fk_affiliate_links_brand
+          FOREIGN KEY (brand_id) REFERENCES affiliate_brands(id)
+          ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+
+  // ✅ Extra columns for affiliate_clicks (UTM + page)
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS page_path text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS utm_source text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS utm_medium text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS utm_campaign text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS utm_content text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS utm_term text NULL;`);
+  await pool.query(`ALTER TABLE affiliate_clicks ADD COLUMN IF NOT EXISTS revenue numeric NULL;`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_page_time ON affiliate_clicks (page_path, clicked_at desc);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_affiliate_clicks_utm_source ON affiliate_clicks (utm_source);`);
+
+  // ✅ Content (posts / categories / tags)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content_categories (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      name text NOT NULL,
+      slug text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (slug)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content_tags (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      name text NOT NULL,
+      slug text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (slug)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content_posts (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      title text NOT NULL,
+      slug text NOT NULL,
+      excerpt text NULL,
+      body_md text NULL,
+      hero_image_url text NULL,
+      seo_title text NULL,
+      seo_description text NULL,
+      status text NOT NULL DEFAULT 'draft',
+      published_at timestamptz NULL,
+      category_id uuid NULL REFERENCES content_categories(id) ON DELETE SET NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (slug)
+    );
+  `);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_posts_status_pub ON content_posts (status, published_at desc);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_posts_category ON content_posts (category_id);`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS content_post_tags (
+      post_id uuid NOT NULL REFERENCES content_posts(id) ON DELETE CASCADE,
+      tag_id uuid NOT NULL REFERENCES content_tags(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (post_id, tag_id)
+    );
+  `);
+
 }
 
 // ✅ risolve il 404 su GET /api/admin/setup

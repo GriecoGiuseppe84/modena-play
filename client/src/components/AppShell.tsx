@@ -1,4 +1,5 @@
 import React from 'react';
+import FlashBanner from './common/FlashBanner';
 import { Link } from 'react-router-dom';
 import logo from '../assets/modenaplay-logo.svg';
 
@@ -44,6 +45,8 @@ export default function AppShell({ children, right, compact = false, title, subt
             {subtitle && <p className="mt-2 text-slate-300 max-w-3xl">{subtitle}</p>}
           </div>
         )}
+
+        <FlashBanner />
 
         <main className="mt-8">{children}</main>
       </div>

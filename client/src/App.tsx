@@ -14,6 +14,9 @@ import AdminAffiliateLinksPage from './pages/AdminAffiliateLinksPage';
 
 import AffiliateRedirectPage from './pages/AffiliateRedirectPage';
 import ResourcesPage from './pages/ResourcesPage';
+import Blog from './pages/Blog';
+import BlogPost from './pages/BlogPost';
+import Offers from './pages/Offers';
 
 import UserDashboardPage from './pages/UserDashboardPage';
 import SellerDashboardPage from './pages/SellerDashboardPage';
@@ -26,6 +29,14 @@ export default function App() {
       {/* Public resources landing */}
       <Route path="/risorse" element={<ResourcesPage />} />
       <Route path="/resources" element={<Navigate to="/risorse" replace />} />
+
+      {/* Public offers */}
+      <Route path="/offerte" element={<Offers />} />
+      <Route path="/offers" element={<Navigate to="/offerte" replace />} />
+
+      {/* Public blog */}
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/blog/:slug" element={<BlogPost />} />
 
       {/* Public short-link redirect (tracks click server-side) */}
       <Route path="/r/:slug" element={<AffiliateRedirectPage />} />

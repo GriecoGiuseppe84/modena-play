@@ -3,6 +3,7 @@ import { useAffiliateLinks } from '../../hooks/useAffiliateLinks';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import LinkManager from './LinkManager';
 import AnalyticsPanel from './AnalyticsPanel';
+import ContentManager from './ContentManager';
 
 function isoDate(d: Date) {
   const x = new Date(d);
@@ -11,7 +12,7 @@ function isoDate(d: Date) {
 }
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState<'home' | 'links' | 'analytics' | 'settings'>('home');
+  const [tab, setTab] = useState<'home' | 'content' | 'links' | 'analytics' | 'settings'>('home');
 
   const now = new Date();
   const from = useMemo(() => isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), []);
@@ -35,7 +36,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        {(['home','links','analytics','settings'] as const).map((k) => (
+        {(['home','content','links','analytics','settings'] as const).map((k) => (
           <button key={k} onClick={() => setTab(k)} className={`px-3 py-2 rounded-xl text-sm font-black ${tab === k ? 'bg-slate-800' : 'bg-slate-900/30 border border-slate-800 hover:bg-slate-800/50'}`}>
             {k.toUpperCase()}
           </button>
@@ -56,6 +57,8 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {tab === 'content' && <div className="mt-6"><ContentManager /></div>}
 
       {tab === 'links' && <div className="mt-6"><LinkManager /></div>}
       {tab === 'analytics' && <div className="mt-6"><AnalyticsPanel /></div>}

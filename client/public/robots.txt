@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://modenaplay-web.onrender.com/sitemap.xml
