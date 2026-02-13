@@ -39,13 +39,14 @@ export default function HomePage() {
   return (
     <AppShell
       title="Modena Play"
-      subtitle="Guide e risorse sul gaming e sul gioco d’azzardo (informazione, comparazioni, strumenti). Iscriviti per salvare preferiti e ricevere selezioni settimanali."
+      subtitle="Gaming \"safe\": offerte su keys/abbonamenti, hardware & gear, usato-refurb e sconti Steam. Guide in stile magazine. Iscriviti per ricevere selezioni settimanali."
       right={
         <>
           <Link className="mp-btn-secondary" to="/offerte">Offerte</Link>
           <Link className="mp-btn-secondary" to="/blog">Blog</Link>
           <Link className="mp-btn-secondary" to="/risorse">Risorse</Link>
           <Link className="mp-btn-secondary" to="/login">Accedi</Link>
+          <Link className="mp-btn-secondary" to="/admin/login">Admin</Link>
           <Link className="mp-btn-primary" to="/signup">Crea account</Link>
         </>
       }
@@ -155,7 +156,7 @@ export default function HomePage() {
     <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">Newsletter</div>
     <h3 className="mt-3 text-xl font-black">Ricevi la selezione “solo roba utile”</h3>
     <p className="text-slate-300 mt-2 text-sm">
-      Una mail a settimana: guide top, offerte solide e strumenti per scegliere bene (gaming + gioco d’azzardo, lato informativo).
+      Una mail a settimana: guide top, offerte solide e strumenti per scegliere bene (solo gaming).
     </p>
 
     <div className="mt-4 flex gap-2">

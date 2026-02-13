@@ -11,6 +11,7 @@ import AdminLoginPage from './pages/AdminLoginPage';
 import AdminSetupPage from './pages/AdminSetupPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminAffiliateLinksPage from './pages/AdminAffiliateLinksPage';
+import AdminContentPage from './pages/AdminContentPage';
 
 import AffiliateRedirectPage from './pages/AffiliateRedirectPage';
 import ResourcesPage from './pages/ResourcesPage';
@@ -54,6 +55,8 @@ export default function App() {
       <Route path="/admin/diagnostics" element={<AdminSetupPage />} />
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/admin/affiliate-links" element={<AdminAffiliateLinksPage />} />
+      <Route path="/admin/content" element={<AdminContentPage />} />
+      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
       {/* Minimal areas */}
       <Route path="/user/dashboard" element={<UserDashboardPage />} />

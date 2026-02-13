@@ -105,6 +105,8 @@ export default function SetupWizard() {
       subtitle="Pagina opzionale: verifica DB, crea tabelle base e salva una config minima. Se lo Step 1 va in timeout, spesso è un cold-start del backend o DATABASE_URL mancante su Render."
       right={
         <>
+          <Link className="mp-btn-secondary" to="/admin/content">Content</Link>
+          <Link className="mp-btn-secondary" to="/admin/affiliate-links">Affiliate Links</Link>
           <Link className="mp-btn-secondary" to="/admin/dashboard">Dashboard</Link>
           <Link className="mp-btn-secondary" to="/">Home</Link>
         </>
