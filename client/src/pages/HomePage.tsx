@@ -39,7 +39,7 @@ export default function HomePage() {
   return (
     <AppShell
       title="Modena Play"
-      subtitle={'Gaming "safe":offerte su keys/abbonamenti, hardware & gear, usato-refurb e sconti Steam. Guide in stile magazine. Iscriviti per ricevere selezioni settimanali."}
+      subtitle={'Gaming "safe": offerte su keys/abbonamenti, hardware & gear, usato-refurb e sconti Steam. Guide in stile magazine. Iscriviti per ricevere selezioni settimanali.'}
       right={
         <>
           <Link className="mp-btn-secondary" to="/offerte">Offerte</Link>
