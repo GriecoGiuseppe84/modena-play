@@ -44,6 +44,7 @@ export default function AdminDashboard() {
           <>
             <Link className="mp-btn-secondary" to="/">Home</Link>
             <Link className="mp-btn-secondary" to="/admin/diagnostics">Diagnostica DB</Link>
+          <Link className="mp-btn-secondary" to="/admin/content">Content</Link>
             <Link className="mp-btn-secondary" to="/admin/affiliate-links">Affiliate Links</Link>
             <button
               onClick={() => {
@@ -105,6 +106,7 @@ export default function AdminDashboard() {
                 <li>Admin login con credenziali ENV</li>
                 <li>Setup Wizard DB (opzionale)</li>
                 <li>Affiliate Links (CRUD + redirect /r/&lt;slug&gt;)</li>
+                <li>Content (blog/guide) con editor e pubblicazione</li>
               </ul>
               {aff ? (
                 <div className="mt-4 space-y-2">
@@ -116,6 +118,9 @@ export default function AdminDashboard() {
                   </div>
                   <Link className="mp-btn-primary" to="/admin/affiliate-links">
                     Gestisci Affiliate Links
+                  </Link>
+                  <Link className="mp-btn-secondary" to="/admin/content">
+                    Apri Content Manager
                   </Link>
                 </div>
               ) : (

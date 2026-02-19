@@ -38,6 +38,14 @@ async function ensureUniqueSlug(table: 'content_posts' | 'content_categories' | 
   return `${cleanBase}-${Date.now().toString(36).slice(-4)}`.slice(0, 80);
 }
 
+// Modena Play focus: gaming “safe” (no casino/slot/bonus content)
+const FORBIDDEN_TERMS = ['casino', 'slot', 'bonus'] as const;
+function violatesGamingSafePolicy(text: string): boolean {
+  const s = String(text || '').toLowerCase();
+  // simple word-boundary-ish match; keeps it predictable
+  return FORBIDDEN_TERMS.some((t) => new RegExp(`(^|[^a-z0-9])${t}([^a-z0-9]|$)`, 'i').test(s));
+}
+
 // -----------------------------
 // Public endpoints
 // -----------------------------
@@ -209,6 +217,16 @@ const postSchema = Joi.object({
 contentRouter.post('/admin/posts', async (req, res) => {
   const { value, error } = postSchema.validate(req.body, { stripUnknown: true });
   if (error) return res.status(400).json({ error: error.message });
+
+  // Focus enforcement: block publishing gambling/casino content
+  if (
+    value.status === 'published' &&
+    violatesGamingSafePolicy(`${value.title}\n${value.excerpt ?? ''}\n${value.body_md ?? ''}`)
+  ) {
+    return res.status(400).json({
+      error: 'Contenuto non consentito: focus "gaming safe" (no casino/slot/bonus). Salva come bozza o modifica il testo.',
+    });
+  }
 
   const slug = await ensureUniqueSlug('content_posts', value.slug || value.title);
 

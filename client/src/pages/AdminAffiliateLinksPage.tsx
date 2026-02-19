@@ -297,8 +297,11 @@ export default function AdminAffiliateLinksPage() {
         subtitle="Crea short-link tracciati, aggiungi categorie/tags e costruisci URL con UTM automaticamente."
         right={
           <div className="flex gap-2 items-center">
-            <Link className="mp-btn-secondary" to="/risorse">Apri Risorse</Link>
-            <button className="mp-btn-secondary" onClick={logout}>Logout</button>
+            <Link className="mp-btn-secondary" to="/admin/dashboard">Control Room</Link>
+            <Link className="mp-btn-secondary" to="/admin/content">Content</Link>
+            <Link className="mp-btn-secondary" to="/admin/diagnostics">Diagnostica DB</Link>
+            <Link className="mp-btn-secondary" to="/risorse">Risorse</Link>
+            <button className="mp-btn-danger" onClick={logout}>Logout</button>
           </div>
         }
       >

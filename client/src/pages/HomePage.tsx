@@ -66,12 +66,17 @@ export default function HomePage() {
   return (
     <AppShell
       title="Modena Play"
+<<<<<<< HEAD
       subtitle="Offerte gaming, guide pratiche e risorse utili: selezionate per farti risparmiare tempo e soldi. Registrati per salvare preferiti e ricevere la selezione settimanale."
+=======
+      subtitle={'Gaming "safe": offerte su keys/abbonamenti, hardware & gear, usato-refurb e sconti Steam. Guide in stile magazine. Iscriviti per ricevere selezioni settimanali.'}
+>>>>>>> 7a0ef3f76eec33a8798000b126421cbaea0bb9cc
       right={
         <>
           <Link className="mp-btn-secondary" to="/offerte">Offerte</Link>
           <Link className="mp-btn-secondary" to="/blog">Guide</Link>
           <Link className="mp-btn-secondary" to="/risorse">Risorse</Link>
+<<<<<<< HEAD
           {hasUser ? (
             <button
               className="mp-btn-primary"
@@ -85,6 +90,11 @@ export default function HomePage() {
               <Link className="mp-btn-primary" to="/signup">Crea account</Link>
             </>
           )}
+=======
+          <Link className="mp-btn-secondary" to="/login">Accedi</Link>
+          <Link className="mp-btn-secondary" to="/admin/login">Admin</Link>
+          <Link className="mp-btn-primary" to="/signup">Crea account</Link>
+>>>>>>> 7a0ef3f76eec33a8798000b126421cbaea0bb9cc
         </>
       }
     >
@@ -178,6 +188,7 @@ export default function HomePage() {
             <Link className="mp-btn-secondary whitespace-nowrap" to="/offerte">Vedi tutte</Link>
           </div>
 
+<<<<<<< HEAD
           <div className="mt-4 grid md:grid-cols-2 gap-3">
             {(offers.data?.items ?? []).slice(0, 6).map((x: any) => (
               <a
@@ -204,6 +215,14 @@ export default function HomePage() {
             {offers.error && <div className="text-slate-400 text-sm">Offerte non disponibili al momento.</div>}
           </div>
         </div>
+=======
+  <div className="mp-card p-6">
+    <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">Newsletter</div>
+    <h3 className="mt-3 text-xl font-black">Ricevi la selezione “solo roba utile”</h3>
+    <p className="text-slate-300 mt-2 text-sm">
+      Una mail a settimana: guide top, offerte solide e strumenti per scegliere bene (solo gaming).
+    </p>
+>>>>>>> 7a0ef3f76eec33a8798000b126421cbaea0bb9cc
 
         <div className="mp-card p-6">
           <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">Newsletter</div>
