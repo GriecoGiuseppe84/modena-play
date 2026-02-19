@@ -6,6 +6,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { useAuth } from '../context/AuthContext';
 
+function buildResolveUrl(
+  slug: string,
+  pagePath?: string,
+  utm?: Partial<Record<'utm_source' | 'utm_medium' | 'utm_campaign' | 'utm_content' | 'utm_term', string>>
+) {
+  const params = new URLSearchParams();
+  params.set('redirect', '1');
+  if (pagePath) params.set('p', pagePath);
+  const u = utm || {};
+  if (u.utm_source) params.set('utm_source', u.utm_source);
+  if (u.utm_medium) params.set('utm_medium', u.utm_medium);
+  if (u.utm_campaign) params.set('utm_campaign', u.utm_campaign);
+  if (u.utm_content) params.set('utm_content', u.utm_content);
+  if (u.utm_term) params.set('utm_term', u.utm_term);
+  return `/r/${encodeURIComponent(slug)}?${params.toString()}`;
+}
+
 export default function HomePage() {
   usePageView('Home');
   const nav = useNavigate();
@@ -13,6 +30,11 @@ export default function HomePage() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [subMsg, setSubMsg] = useState<string | null>(null);
+
+  const offers = useQuery({
+    queryKey: ['home-offers'],
+    queryFn: async () => (await api.get('/api/affiliate/public/links', { params: { limit: 6 } })).data,
+  });
 
   const trending = useQuery({
     queryKey: ['trending-home'],
@@ -35,146 +57,198 @@ export default function HomePage() {
     }
   };
   const hasUser = useMemo(() => Boolean(token), [token]);
+  const dashboardPath = useMemo(() => {
+    if (!token) return null;
+    if (kind === 'admin') return '/admin/dashboard';
+    return role === 'seller' ? '/seller/dashboard' : '/user/dashboard';
+  }, [token, kind, role]);
 
   return (
     <AppShell
       title="Modena Play"
-      subtitle="Guide e risorse sul gaming e sul gioco d’azzardo (informazione, comparazioni, strumenti). Iscriviti per salvare preferiti e ricevere selezioni settimanali."
+      subtitle="Offerte gaming, guide pratiche e risorse utili: selezionate per farti risparmiare tempo e soldi. Registrati per salvare preferiti e ricevere la selezione settimanale."
       right={
         <>
           <Link className="mp-btn-secondary" to="/offerte">Offerte</Link>
-          <Link className="mp-btn-secondary" to="/blog">Blog</Link>
+          <Link className="mp-btn-secondary" to="/blog">Guide</Link>
           <Link className="mp-btn-secondary" to="/risorse">Risorse</Link>
-          <Link className="mp-btn-secondary" to="/login">Accedi</Link>
-          <Link className="mp-btn-primary" to="/signup">Crea account</Link>
+          {hasUser ? (
+            <button
+              className="mp-btn-primary"
+              onClick={() => dashboardPath && nav(dashboardPath)}
+            >
+              Vai al tuo profilo
+            </button>
+          ) : (
+            <>
+              <Link className="mp-btn-secondary" to="/login">Accedi</Link>
+              <Link className="mp-btn-primary" to="/signup">Crea account</Link>
+            </>
+          )}
         </>
       }
     >
       <section className="grid lg:grid-cols-2 gap-5 items-start">
         <div className="mp-card p-6 md:p-7">
-          <div className="mp-badge text-modena-cyan border-modena-cyan/30 bg-modena-cyan/10">✨ MVP pronto</div>
-          <h2 className="mt-3 text-2xl md:text-3xl font-black">
-            Autenticazione solida + Playbook di lancio.
-          </h2>
+          <div className="mp-badge text-modena-cyan border-modena-cyan/30 bg-modena-cyan/10">🔎 Selezione curata</div>
+          <h2 className="mt-3 text-2xl md:text-3xl font-black">Offerte e guide gaming: solo quello che serve davvero.</h2>
           <p className="mt-2 text-slate-300">
-            Login/Signup con password, recupero password e dashboard per ruolo. Dentro trovi una presentazione guidata (checklist + roadmap)
-            per trasformare ModenaGiochi in un progetto che converte.
+            Un portale “magazine + deals”: raccogliamo offerte affidabili (keys, abbonamenti, hardware &amp; gear) e le accompagniamo con guide pratiche.
+            Registrandoti puoi salvare preferiti e ricevere una selezione settimanale.
           </p>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button className="mp-btn-primary" onClick={() => nav('/signup')}>Inizia ora</button>
-            <button className="mp-btn-secondary" onClick={() => nav('/login')}>Ho già un account</button>
-            <button className="mp-btn-secondary" onClick={() => nav('/admin/login')}>Accesso Admin</button>
-            {hasUser && (
-              <button
-                className="mp-btn-secondary"
-                onClick={() => {
-                  if (kind === 'admin') nav('/admin/dashboard');
-                  else nav(role === 'seller' ? '/seller/dashboard' : '/user/dashboard');
-                }}
-              >
-                Vai alla dashboard
+            <button className="mp-btn-primary" onClick={() => nav('/signup')}>Crea account</button>
+            <button className="mp-btn-secondary" onClick={() => nav('/offerte')}>Sfoglia offerte</button>
+            <button className="mp-btn-secondary" onClick={() => nav('/blog')}>Leggi guide</button>
+            {hasUser && dashboardPath && (
+              <button className="mp-btn-secondary" onClick={() => nav(dashboardPath)}>
+                Vai al tuo profilo
               </button>
             )}
           </div>
 
           <div className="mt-6 grid sm:grid-cols-3 gap-3">
             <div className="mp-card-soft p-4">
-              <div className="text-sm font-semibold">Affiliate Hub</div>
-              <div className="text-xs text-slate-400 mt-1">Contenuti + link che convertono.</div>
+              <div className="text-sm font-semibold">Offerte verificate</div>
+              <div className="text-xs text-slate-400 mt-1">Link chiari e sempre aggiornati.</div>
             </div>
             <div className="mp-card-soft p-4">
-              <div className="text-sm font-semibold">Tracking</div>
-              <div className="text-xs text-slate-400 mt-1">Misura traffico e click, senza frizioni.</div>
+              <div className="text-sm font-semibold">Guide utili</div>
+              <div className="text-xs text-slate-400 mt-1">Scelte smart: cosa comprare e perché.</div>
             </div>
             <div className="mp-card-soft p-4">
-              <div className="text-sm font-semibold">Scale</div>
-              <div className="text-xs text-slate-400 mt-1">Marketplace solo quando conviene.</div>
+              <div className="text-sm font-semibold">Preferiti</div>
+              <div className="text-xs text-slate-400 mt-1">Salva ciò che ti interessa (account).</div>
             </div>
+          </div>
+
+          <div className="mt-5 text-xs text-slate-500">
+            Trasparenza: alcuni link possono essere affiliati. Per te il prezzo non cambia, a noi aiuta a mantenere il progetto online.
           </div>
         </div>
 
         <div className="space-y-4">
           <div className="mp-card p-6">
-            <h3 className="text-lg font-black">Cosa puoi fare subito</h3>
+            <h3 className="text-lg font-black">Perché registrarsi</h3>
             <ul className="mt-3 text-sm text-slate-300 space-y-2 list-disc list-inside">
-              <li>Creare account e accedere (User / Seller)</li>
-              <li>Recuperare password via email (Supabase Auth)</li>
-              <li>Seguire il Playbook con checklist (salvata nel browser)</li>
+              <li>Salvi preferiti e torni al volo sulle offerte.</li>
+              <li>Ricevi la newsletter settimanale (solo selezione, zero spam).</li>
+              <li>In arrivo: avvisi su prezzo e nuove promo (wishlist).</li>
             </ul>
             <div className="mt-4 text-xs text-slate-400">
-              Le funzioni DB/analytics avanzate sono modulari: si attivano senza bloccare il portale.
+              Obiettivo: un portale italiano “deals + magazine” con strumenti semplici (wishlist/alert) e contenuti brevi che fanno scegliere meglio.
             </div>
           </div>
 
           <div className="mp-card p-6">
-            <h3 className="text-lg font-black">Obiettivo (realistico)</h3>
+            <h3 className="text-lg font-black">Cosa trovi su Modena Play</h3>
             <div className="mt-3 grid sm:grid-cols-3 gap-3">
               <div className="mp-card-soft p-4">
-                <div className="text-xs text-slate-400">Mese 1</div>
-                <div className="text-lg font-black mt-1">€0–50</div>
-                <div className="text-xs text-slate-400 mt-1">Setup + 10 articoli.</div>
+                <div className="text-xs text-slate-400">Deals</div>
+                <div className="text-lg font-black mt-1">Keys &amp; abbonamenti</div>
+                <div className="text-xs text-slate-400 mt-1">Sconti e promo selezionate.</div>
               </div>
               <div className="mp-card-soft p-4">
-                <div className="text-xs text-slate-400">Mese 3</div>
-                <div className="text-lg font-black mt-1">€230–560</div>
-                <div className="text-xs text-slate-400 mt-1">SEO inizia a spingere.</div>
+                <div className="text-xs text-slate-400">Hardware</div>
+                <div className="text-lg font-black mt-1">Gear &amp; accessori</div>
+                <div className="text-xs text-slate-400 mt-1">Mouse, cuffie, controller.</div>
               </div>
               <div className="mp-card-soft p-4">
-                <div className="text-xs text-slate-400">Mese 6</div>
-                <div className="text-lg font-black mt-1">€750–1.600</div>
-                <div className="text-xs text-slate-400 mt-1">Con costanza + contenuti.</div>
+                <div className="text-xs text-slate-400">Guide</div>
+                <div className="text-lg font-black mt-1">Scelte smart</div>
+                <div className="text-xs text-slate-400 mt-1">Come comprare meglio.</div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-<section className="mt-6 grid lg:grid-cols-3 gap-5 items-start">
-  <div className="mp-card p-6 lg:col-span-2">
-    <div className="text-sm text-slate-400">Trending</div>
-    <h3 className="mt-1 text-xl font-black">Le guide più viste degli ultimi 7 giorni</h3>
-    <p className="text-slate-300 mt-2 text-sm">
-      Qui trovi quello che sta interessando di più la community. È anche il posto giusto per mettere i link affiliati “che pagano”.
-    </p>
 
-    <div className="mt-4 grid md:grid-cols-2 gap-3">
-      {(trending.data?.trendingPosts ?? []).slice(0, 6).map((p: any) => (
-        <Link key={p.id} to={`/blog/${p.slug}`} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 hover:bg-slate-950/70">
-          <div className="font-semibold">{p.title}</div>
-          <div className="text-xs text-slate-400 mt-1">{p.views} views • {p.clicks} click</div>
-        </Link>
-      ))}
-      {(!trending.data?.trendingPosts || trending.data.trendingPosts.length === 0) && (
-        <div className="text-slate-400 text-sm">Nessun dato trending ancora: pubblica i primi articoli e genera traffico.</div>
-      )}
-    </div>
-  </div>
+      <section className="mt-6 grid lg:grid-cols-3 gap-5 items-start">
+        <div className="mp-card p-6 lg:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm text-slate-400">In evidenza</div>
+              <h3 className="mt-1 text-xl font-black">Offerte consigliate</h3>
+              <p className="text-slate-300 mt-2 text-sm">
+                Una selezione rapida: store e servizi utili per gamer. Aggiorniamo la lista in base a ciò che interessa davvero.
+              </p>
+            </div>
+            <Link className="mp-btn-secondary whitespace-nowrap" to="/offerte">Vedi tutte</Link>
+          </div>
 
-  <div className="mp-card p-6">
-    <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">Newsletter</div>
-    <h3 className="mt-3 text-xl font-black">Ricevi la selezione “solo roba utile”</h3>
-    <p className="text-slate-300 mt-2 text-sm">
-      Una mail a settimana: guide top, offerte solide e strumenti per scegliere bene (gaming + gioco d’azzardo, lato informativo).
-    </p>
+          <div className="mt-4 grid md:grid-cols-2 gap-3">
+            {(offers.data?.items ?? []).slice(0, 6).map((x: any) => (
+              <a
+                key={x.slug}
+                href={buildResolveUrl(String(x.slug), window.location.pathname, {
+                  utm_source: 'modenaplay',
+                  utm_medium: 'home',
+                  utm_campaign: 'featured',
+                })}
+                className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 hover:bg-slate-950/70 transition"
+              >
+                <div className="text-xs uppercase tracking-wide text-slate-400">{x.brand_name || 'Partner'}</div>
+                <div className="font-semibold mt-1">{x.title}</div>
+                {Array.isArray(x.tags) && x.tags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {x.tags.slice(0, 5).map((t: string) => (
+                      <span key={t} className="mp-badge border-slate-700 bg-slate-900/40">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </a>
+            ))}
+            {offers.isLoading && <div className="text-slate-400 text-sm">Caricamento offerte…</div>}
+            {offers.error && <div className="text-slate-400 text-sm">Offerte non disponibili al momento.</div>}
+          </div>
+        </div>
 
-    <div className="mt-4 flex gap-2">
-      <input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="la tua email"
-        className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2"
-      />
-      <button className="mp-btn-primary" onClick={onSubscribe} disabled={submitting}>
-        {submitting ? '…' : 'Iscrivimi'}
-      </button>
-    </div>
-    {subMsg && <div className="mt-3 text-sm text-slate-300">{subMsg}</div>}
-    <div className="mt-4 text-xs text-slate-500">Niente spam. Disiscrizione con 1 click.</div>
-  </div>
-</section>
+        <div className="mp-card p-6">
+          <div className="mp-badge text-modena-gold border-modena-gold/30 bg-modena-gold/10">Newsletter</div>
+          <h3 className="mt-3 text-xl font-black">Ricevi la selezione “solo roba utile”</h3>
+          <p className="text-slate-300 mt-2 text-sm">Una mail a settimana: offerte top + guide brevi. Niente spam.</p>
 
-      <div className="mt-10 text-xs text-slate-500">© 2026 Modena Play · MVP</div>
+          <div className="mt-4 flex gap-2">
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="la tua email"
+              className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2"
+            />
+            <button className="mp-btn-primary" onClick={onSubscribe} disabled={submitting}>
+              {submitting ? '…' : 'Iscrivimi'}
+            </button>
+          </div>
+          {subMsg && <div className="mt-3 text-sm text-slate-300">{subMsg}</div>}
+          <div className="mt-4 text-xs text-slate-500">Disiscrizione con 1 click.</div>
+        </div>
+      </section>
+
+      <section className="mt-6 mp-card p-6">
+        <div className="text-sm text-slate-400">Trending</div>
+        <h3 className="mt-1 text-xl font-black">Guide più lette (ultimi 7 giorni)</h3>
+        <p className="text-slate-300 mt-2 text-sm">Le guide che stanno aiutando di più la community in questo momento.</p>
+
+        <div className="mt-4 grid md:grid-cols-3 gap-3">
+          {(trending.data?.trendingPosts ?? []).slice(0, 6).map((p: any) => (
+            <Link
+              key={p.id}
+              to={`/blog/${p.slug}`}
+              className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 hover:bg-slate-950/70 transition"
+            >
+              <div className="font-semibold">{p.title}</div>
+              <div className="text-xs text-slate-400 mt-2">{p.views} letture • {p.clicks} click</div>
+            </Link>
+          ))}
+          {(!trending.data?.trendingPosts || trending.data.trendingPosts.length === 0) && (
+            <div className="text-slate-400 text-sm">Nessun dato trending ancora: pubblica i primi articoli e genera traffico.</div>
+          )}
+        </div>
+      </section>
+
+      <div className="mt-10 text-xs text-slate-500">© 2026 Modena Play · Portale offerte & guide gaming</div>
     </AppShell>
   );
 }

@@ -5,10 +5,18 @@ import AppShell from '../components/AppShell';
 import { api } from '../services/api';
 import AffiliateBox from '../components/AffiliateBox';
 import { usePageView } from '../hooks/usePageView';
+import { useAuth } from '../context/AuthContext';
 
 export default function Offers() {
   const loc = useLocation();
   usePageView('Offerte');
+
+  const { token, kind, role } = useAuth();
+  const dashboardPath = React.useMemo(() => {
+    if (!token) return null;
+    if (kind === 'admin') return '/admin/dashboard';
+    return role === 'seller' ? '/seller/dashboard' : '/user/dashboard';
+  }, [token, kind, role]);
 
   const [tag, setTag] = useState<string>('');
 
@@ -28,13 +36,20 @@ export default function Offers() {
 
   return (
     <AppShell
-      title="Offerte & Partner"
-      subtitle="Selezione rapida: offerte, store e servizi utili per gamer. Tutti i link sono tracciati per capire cosa interessa davvero."
+      title="Offerte"
+      subtitle="Store, keys, abbonamenti e servizi utili per gamer. Filtra per categoria e salva i preferiti (account)."
       right={
         <>
+          <Link className="mp-btn-secondary" to="/">Home</Link>
           <Link className="mp-btn-secondary" to="/blog">Blog</Link>
-          <Link className="mp-btn-secondary" to="/login">Accedi</Link>
-          <Link className="mp-btn-primary" to="/signup">Crea account</Link>
+          {token ? (
+            <Link className="mp-btn-primary" to={dashboardPath || '/'}>Profilo</Link>
+          ) : (
+            <>
+              <Link className="mp-btn-secondary" to="/login">Accedi</Link>
+              <Link className="mp-btn-primary" to="/signup">Crea account</Link>
+            </>
+          )}
         </>
       }
     >
@@ -51,9 +66,7 @@ export default function Offers() {
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
-          <div className="text-slate-400 text-sm flex-1">
-            Tip: inserisci nei post il tag <span className="mp-badge border-slate-700 bg-slate-900/40">[affiliate:slug]</span> per mostrare box “Scelta consigliata”.
-          </div>
+          <div className="text-slate-400 text-sm flex-1">Consiglio: inizia da una categoria (es. keys, hardware, abbonamenti) e salva ciò che ti interessa.</div>
         </div>
       </div>
 
