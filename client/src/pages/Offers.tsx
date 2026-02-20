@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import AppShell from '../components/AppShell';
 import { api } from '../services/api';
@@ -9,10 +9,12 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Offers() {
   const loc = useLocation();
+  const nav = useNavigate();
   usePageView('Offerte');
 
   const { token, kind, role } = useAuth();
-  const dashboardPath = React.useMemo(() => {
+  const hasUser = Boolean(token);
+  const dashboardPath = useMemo(() => {
     if (!token) return null;
     if (kind === 'admin') return '/admin/dashboard';
     return role === 'seller' ? '/seller/dashboard' : '/user/dashboard';
@@ -36,14 +38,17 @@ export default function Offers() {
 
   return (
     <AppShell
-      title="Offerte"
-      subtitle="Store, keys, abbonamenti e servizi utili per gamer. Filtra per categoria e salva i preferiti (account)."
+      title="Offerte & Partner"
+      subtitle="Selezione rapida: offerte, store e servizi utili per gamer. Alcuni link possono essere affiliati: sostengono il progetto senza costi extra per te."
       right={
         <>
           <Link className="mp-btn-secondary" to="/">Home</Link>
-          <Link className="mp-btn-secondary" to="/blog">Blog</Link>
-          {token ? (
-            <Link className="mp-btn-primary" to={dashboardPath || '/'}>Profilo</Link>
+          <Link className="mp-btn-secondary" to="/blog">Guide</Link>
+          <Link className="mp-btn-secondary" to="/risorse">Risorse</Link>
+          {hasUser ? (
+            <button className="mp-btn-primary" onClick={() => dashboardPath && nav(dashboardPath)}>
+              Profilo
+            </button>
           ) : (
             <>
               <Link className="mp-btn-secondary" to="/login">Accedi</Link>
@@ -66,7 +71,9 @@ export default function Offers() {
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
-          <div className="text-slate-400 text-sm flex-1">Consiglio: inizia da una categoria (es. keys, hardware, abbonamenti) e salva ciò che ti interessa.</div>
+          <div className="text-slate-400 text-sm flex-1">
+            Seleziona una categoria per trovare subito quello che ti interessa.
+          </div>
         </div>
       </div>
 

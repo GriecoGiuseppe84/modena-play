@@ -56,7 +56,6 @@ export default function App() {
       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       <Route path="/admin/affiliate-links" element={<AdminAffiliateLinksPage />} />
       <Route path="/admin/content" element={<AdminContentPage />} />
-      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
       {/* Minimal areas */}
       <Route path="/user/dashboard" element={<UserDashboardPage />} />

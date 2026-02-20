@@ -38,12 +38,19 @@ async function ensureUniqueSlug(table: 'content_posts' | 'content_categories' | 
   return `${cleanBase}-${Date.now().toString(36).slice(-4)}`.slice(0, 80);
 }
 
-// Modena Play focus: gaming “safe” (no casino/slot/bonus content)
-const FORBIDDEN_TERMS = ['casino', 'slot', 'bonus'] as const;
-function violatesGamingSafePolicy(text: string): boolean {
-  const s = String(text || '').toLowerCase();
-  // simple word-boundary-ish match; keeps it predictable
-  return FORBIDDEN_TERMS.some((t) => new RegExp(`(^|[^a-z0-9])${t}([^a-z0-9]|$)`, 'i').test(s));
+function containsForbiddenTerms(text: string) {
+  // Project focus: "gaming safe" only. We block publishing (not drafting) if these keywords appear.
+  const t = String(text ?? '').toLowerCase();
+  const terms = [
+    /\bcasino\b/i,
+    /\bslot\b/i,
+    /\bbonus\b/i,
+    /\bscommess(e|a)\b/i,
+    /\broulette\b/i,
+    /\bblackjack\b/i,
+    /\bpoker\b/i,
+  ];
+  return terms.some((re) => re.test(t));
 }
 
 // -----------------------------
@@ -200,6 +207,33 @@ contentRouter.get('/admin/posts', async (_req, res) => {
   return res.json({ items: r.rows ?? [] });
 });
 
+// Read (full) by id
+contentRouter.get('/admin/posts/:id', async (req, res) => {
+  const id = String(req.params.id ?? '').trim();
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+
+  const r = await pool.query(
+    `SELECT id, title, slug, excerpt, body_md, hero_image_url, seo_title, seo_description, status, published_at, category_id, created_at, updated_at
+     FROM content_posts
+     WHERE id=$1
+     LIMIT 1`,
+    [id]
+  );
+  const post = r.rows?.[0];
+  if (!post) return res.status(404).json({ error: 'Not found' });
+
+  const tagsR = await pool.query(
+    `SELECT t.id, t.name, t.slug
+     FROM content_tags t
+     JOIN content_post_tags pt ON pt.tag_id=t.id
+     WHERE pt.post_id=$1
+     ORDER BY t.name ASC`,
+    [id]
+  );
+
+  return res.json({ item: post, tags: tagsR.rows ?? [] });
+});
+
 const postSchema = Joi.object({
   title: Joi.string().min(2).max(160).required(),
   slug: Joi.string().allow('', null).max(80),
@@ -218,14 +252,11 @@ contentRouter.post('/admin/posts', async (req, res) => {
   const { value, error } = postSchema.validate(req.body, { stripUnknown: true });
   if (error) return res.status(400).json({ error: error.message });
 
-  // Focus enforcement: block publishing gambling/casino content
-  if (
-    value.status === 'published' &&
-    violatesGamingSafePolicy(`${value.title}\n${value.excerpt ?? ''}\n${value.body_md ?? ''}`)
-  ) {
-    return res.status(400).json({
-      error: 'Contenuto non consentito: focus "gaming safe" (no casino/slot/bonus). Salva come bozza o modifica il testo.',
-    });
+  if (value.status === 'published') {
+    const txt = [value.title, value.excerpt, value.body_md, value.seo_title, value.seo_description].filter(Boolean).join(' ');
+    if (containsForbiddenTerms(txt)) {
+      return res.status(400).json({ error: 'Contenuto bloccato: focus "gaming safe" (evita casino/slot/bonus e simili).' });
+    }
   }
 
   const slug = await ensureUniqueSlug('content_posts', value.slug || value.title);
@@ -281,4 +312,96 @@ contentRouter.post('/admin/posts', async (req, res) => {
   }
 
   return res.json({ item: post });
+});
+
+// Update
+contentRouter.put('/admin/posts/:id', async (req, res) => {
+  const id = String(req.params.id ?? '').trim();
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+
+  const { value, error } = postSchema.validate(req.body, { stripUnknown: true });
+  if (error) return res.status(400).json({ error: error.message });
+
+  if (value.status === 'published') {
+    const txt = [value.title, value.excerpt, value.body_md, value.seo_title, value.seo_description].filter(Boolean).join(' ');
+    if (containsForbiddenTerms(txt)) {
+      return res.status(400).json({ error: 'Contenuto bloccato: focus "gaming safe" (evita casino/slot/bonus e simili).' });
+    }
+  }
+
+  const slug = await ensureUniqueSlug('content_posts', value.slug || value.title, id);
+
+  const publishedAt =
+    value.status === 'published'
+      ? value.published_at
+        ? new Date(value.published_at).toISOString()
+        : new Date().toISOString()
+      : null;
+
+  const r = await pool.query(
+    `UPDATE content_posts
+     SET title=$1,
+         slug=$2,
+         excerpt=$3,
+         body_md=$4,
+         hero_image_url=$5,
+         seo_title=$6,
+         seo_description=$7,
+         status=$8,
+         published_at=$9,
+         category_id=NULLIF($10,'')::uuid,
+         updated_at=now()
+     WHERE id=$11
+     RETURNING id, title, slug, excerpt, body_md, hero_image_url, seo_title, seo_description, status, published_at, category_id, created_at, updated_at`,
+    [
+      value.title,
+      slug,
+      value.excerpt ?? null,
+      value.body_md ?? null,
+      value.hero_image_url ?? null,
+      value.seo_title ?? null,
+      value.seo_description ?? null,
+      value.status ?? 'draft',
+      publishedAt,
+      value.category_id ?? '',
+      id,
+    ]
+  );
+  const post = r.rows?.[0];
+  if (!post) return res.status(404).json({ error: 'Not found' });
+
+  // Replace tags
+  await pool.query(`DELETE FROM content_post_tags WHERE post_id=$1`, [id]);
+  const tagSlugs: string[] = value.tag_slugs ?? [];
+  if (tagSlugs.length) {
+    for (const ts of tagSlugs) {
+      const tSlug = slugify(ts);
+      const tagR = await pool.query(
+        `INSERT INTO content_tags (name, slug)
+         VALUES ($1,$2)
+         ON CONFLICT (slug) DO UPDATE SET name=EXCLUDED.name
+         RETURNING id`,
+        [ts, tSlug]
+      );
+      const tagId = tagR.rows?.[0]?.id;
+      if (tagId) {
+        await pool.query(
+          `INSERT INTO content_post_tags (post_id, tag_id)
+           VALUES ($1,$2)
+           ON CONFLICT DO NOTHING`,
+          [id, tagId]
+        );
+      }
+    }
+  }
+
+  return res.json({ item: post });
+});
+
+// Delete
+contentRouter.delete('/admin/posts/:id', async (req, res) => {
+  const id = String(req.params.id ?? '').trim();
+  if (!id) return res.status(400).json({ error: 'Missing id' });
+  await pool.query(`DELETE FROM content_posts WHERE id=$1`, [id]);
+  return res.json({ ok: true });
 });
